@@ -30,7 +30,7 @@
  *      For optimization purposes, error handling is minimized and responsibility
  *      for parameter correctness is transfered to user code. Also some code constructions
  *      may not follow expected patterns.
- * 
+ *
  * @file
  **/
 
@@ -108,7 +108,7 @@ void RingBuffer_Initialize(RingBuffer_T *ringBuffer, uint8_t *bufferSpace, uint3
 }
 
 /*  The description of the function is available in Kiso_RingBuffer.h */
-uint32_t RingBuffer_Write(RingBuffer_T *ringBuffer, uint8_t *data, uint32_t length)
+uint32_t RingBuffer_Write(RingBuffer_T *ringBuffer, const uint8_t *data, uint32_t length)
 {
     uint32_t actualLength = 0UL;
 

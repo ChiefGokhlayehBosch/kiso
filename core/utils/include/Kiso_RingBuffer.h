@@ -85,7 +85,7 @@
  *      Definition:
  *      - WriteIndex: the location where data is stored to
  *      - ReadIndex:  the location from where to read from
- *  
+ *
  */
 typedef struct RingBuffer_S
 {
@@ -114,7 +114,7 @@ typedef struct RingBuffer_S
  *      inside the descriptor.
  *      MUST BE > 1
  *      NOTE: the actual number of bytes that can be stored is size -1
- * 
+ *
  */
 void RingBuffer_Initialize(RingBuffer_T *ringBuffer, uint8_t *bufferSpace, uint32_t size);
 
@@ -142,9 +142,9 @@ void RingBuffer_Initialize(RingBuffer_T *ringBuffer, uint8_t *bufferSpace, uint3
  *
  *  @return
  *      actual number of bytes written
- * 
+ *
  */
-uint32_t RingBuffer_Write(RingBuffer_T *ringBuffer, uint8_t *data, uint32_t length);
+uint32_t RingBuffer_Write(RingBuffer_T *ringBuffer, const uint8_t *data, uint32_t length);
 
 /**
  *  @brief
