@@ -22,6 +22,7 @@
 #ifndef AT3GPP27007_H_
 #define AT3GPP27007_H_
 
+#include "AtTransceiver.h"
 #include "Kiso_Retcode.h"
 #include <limits.h>
 
@@ -333,19 +334,17 @@ typedef struct AT_CGPADDR_Param_S AT_CGPADDR_Param_T;
 struct AT_CGPADDR_Resp_S
 {
     /**
-     * @brief First address of the PDP context.
-     *
-     * @note An IP address of all zeroes (IPv4: 0.0.0.0) and type INVALID means
-     * is currently associated with this context.
+     * @brief Context-Id queried.
      */
-    AT_CGPADDR_Address_T Address1;
+    uint8_t Cid;
+
     /**
-     * @brief Optional second address of the PDP context.
+     * @brief Address of the PDP context.
      *
      * @note An IP address of all zeroes (IPv4: 0.0.0.0) and type INVALID means
      * is currently associated with this context.
      */
-    AT_CGPADDR_Address_T Address2;
+    AT_CGPADDR_Address_T PdpAddr;
 };
 typedef struct AT_CGPADDR_Resp_S AT_CGPADDR_Resp_T;
 
@@ -375,9 +374,9 @@ typedef enum AT_CFUN_Fun_E AT_CFUN_Fun_T;
  */
 enum AT_CFUN_Rst_E
 {
-    AT_CFUN_RST_NORESET = 0,  //!<   Do not reset MT before switching to the selected <fun>.
-    AT_CFUN_RST_RESET = 1,    //!<     Perform a silent MT reset (with graceful network detach) before switching to <fun>.
-    AT_CFUN_RST_INVALID = 255 //!<  Invalid <rst> value.
+    AT_CFUN_RST_NORESET = 0,  //!< Do not reset MT before switching to the selected <fun>.
+    AT_CFUN_RST_RESET = 1,    //!< Perform a silent MT reset (with graceful network detach) before switching to <fun>.
+    AT_CFUN_RST_INVALID = 255 //!< Invalid <rst> value.
 };
 typedef enum AT_CFUN_Rst_E AT_CFUN_Rst_T;
 
@@ -400,104 +399,134 @@ struct AT_CFUN_Resp_S
 };
 typedef struct AT_CFUN_Resp_S AT_CFUN_Resp_T;
 
+enum AT_CMEE_N_E
+{
+    AT_CMEE_N_DISABLED = 0, //!< CME ERROR response disabled.
+    AT_CMEE_N_NUMERIC = 1,  //!< CME ERROR response numeric.
+    AT_CMEE_N_VERBOSE = 2,  //!< CME ERROR response verbose textual.
+    AT_CMEE_N_INVALID = 255 //!< Invalid <n> value.
+};
+typedef enum AT_CMEE_N_E AT_CMEE_N_T;
+
 /* *** NETWORK COMMANDS ***************************************************** */
 
 /**
  * @brief Set the mode and information content of the CREG (network
  * registration) URC.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] n
  * Mode of the CREG URC (supported range: #AT_CXREG_N_DISABLED to
  * #AT_CXREG_N_URC_LOC_CAUSE)
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CREG(AT_CXREG_N_T n);
+Retcode_T At_Set_CREG(struct AtTransceiver_S *t, AT_CXREG_N_T n);
 
 /**
  * @brief Set the mode and information content of the CGREG (GPRS network
  * registration) URC.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] n
  * Mode of the CGREG URC (supported range: #AT_CXREG_N_DISABLED to
  * #AT_CXREG_N_URC_LOC_PSM_CAUSE)
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CGREG(AT_CXREG_N_T n);
+Retcode_T At_Set_CGREG(struct AtTransceiver_S *t, AT_CXREG_N_T n);
 
 /**
  * @brief Set the mode and information content of the CEREG (EPS network
  * registration) URC.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] n
  * Mode of the CEREG URC (supported range: #AT_CXREG_N_DISABLED to
  * #AT_CXREG_N_URC_LOC_PSM_CAUSE)
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CEREG(AT_CXREG_N_T n);
+Retcode_T At_Set_CEREG(struct AtTransceiver_S *t, AT_CXREG_N_T n);
 
 /**
  * @brief Get the mode of the CREG (network registration) URC.
  *
- * @param[out] n
- * Will hold the value of the 'n' argument returned from AT+CREG?
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
+ * @param[in/out] resp
+ * On entry, must point to allocated instance of #AT_CREG_Param_T. On exit will
+ * contain the parameters obtained from AT+CREG? command response.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Get_CREG(AT_CREG_Param_T *n);
+Retcode_T At_Get_CREG(struct AtTransceiver_S *t, AT_CREG_Param_T *resp);
 
 /**
  * @brief Get the mode of the CGREG (GPRS network registration) URC.
  *
- * @param[out] n
- * Will hold the value of the 'n' argument returned from AT+CGREG?
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
+ * @param[in/out] resp
+ * On entry, must point to allocated instance of #AT_CGREG_Param_T. On exit will
+ * contain the parameters obtained from AT+CGREG? command response.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Get_CGREG(AT_CGREG_Param_T *n);
+Retcode_T At_Get_CGREG(struct AtTransceiver_S *t, AT_CGREG_Param_T *resp);
 
 /**
  * @brief Get the mode of the CEREG (EPS network registration) URC.
  *
- * @param[out] n
- * Will hold the value of the 'n' argument returned from AT+CEREG?
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
+ * @param[in/out] resp
+ * On entry, must point to allocated instance of #AT_CEREG_Param_T. On exit will
+ * contain the parameters obtained from AT+CEREG? command response.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Get_CEREG(AT_CEREG_Param_T *n);
+Retcode_T At_Get_CEREG(struct AtTransceiver_S *t, AT_CEREG_Param_T *resp);
 
 /**
  * @brief Set the mode of the CMEE (mobile termination error) .
  *
- * @param[in] mode
- * Will hold the used mode
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
+ * @param[in] n
+ * Formatting mode of the +CMEE ERROR response.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CMEE(uint32_t mode);
+Retcode_T At_Set_CMEE(struct AtTransceiver_S *t, AT_CMEE_N_T n);
 
 /**
  * @brief Set the network operator selection criteria for GSM/UMTS/EPS/etc.
  * The modem will rely on these to choose an operator to register to.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] param
  * Valid structure pointer containing the network operator criteria details.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_COPS(const AT_COPS_Param_T *param);
+Retcode_T At_Set_COPS(struct AtTransceiver_S *t, const AT_COPS_Param_T *param);
 
 /**
  * @brief Set the connection parameters for a data-context.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] param
  * Valid structure pointer containing the context definition parameters.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CGDCONT(const AT_CGDCONT_Param_T *param);
+Retcode_T At_Set_CGDCONT(struct AtTransceiver_S *t, const AT_CGDCONT_Param_T *param);
 
 /**
  * @brief Activate or deactivate a specified data-context.
@@ -505,17 +534,21 @@ Retcode_T At_Set_CGDCONT(const AT_CGDCONT_Param_T *param);
  * @note If the specified data-context is already activated or deactivated, no
  * action is taken.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] param
  * Valid structure pointer containing the details of which context to
  * activate/deactivate.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CGACT(const AT_CGACT_Param_T *param);
+Retcode_T At_Set_CGACT(struct AtTransceiver_S *t, const AT_CGACT_Param_T *param);
 
 /**
  * @brief Show the PDP address for the specified Context-Id.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] param
  * Valid structure pointer to initiate the 'Show Address' procedure. The
  * addresses will be written into the response structure.
@@ -525,19 +558,21 @@ Retcode_T At_Set_CGACT(const AT_CGACT_Param_T *param);
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CGPADDR(const AT_CGPADDR_Param_T *param, AT_CGPADDR_Resp_T *resp);
+Retcode_T At_Set_CGPADDR(struct AtTransceiver_S *t, const AT_CGPADDR_Param_T *param, AT_CGPADDR_Resp_T *resp);
 
 /* *** SIM COMMANDS ********************************************************* */
 
 /**
  * @brief Enter the PIN to unlock the SIM card.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] pin
  * C-string containing the PIN.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CPIN(const char *pin);
+Retcode_T At_Set_CPIN(struct AtTransceiver_S *t, const char *pin);
 
 /* *** TE-TA INTERFACE COMMANDS ********************************************* */
 
@@ -546,52 +581,61 @@ Retcode_T At_Set_CPIN(const char *pin);
  * response.
  * Can be used to probe the AT device for responsiveness.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
+ *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Test_AT(void);
+Retcode_T At_Test_AT(struct AtTransceiver_S *t);
 
 /**
  * @brief Enable or disable command echoing of the DCE (modem).
  *
  * Refer to ITU-T Recommendation V.250 (07/2003).
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] enableEcho
  * True if echoing should be enabled, false otherwise.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_ATE(bool enableEcho);
+Retcode_T At_Set_ATE(struct AtTransceiver_S *t, bool enableEcho);
 
 /* *** POWER CONTROL COMMANDS *********************************************** */
 
 /**
  * @brief Set the MT to a desired functionality level or perform a MT reset.
  *
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
  * @param[in] param
  * Valid structure pointer that contains the desired functionality level and
  * optional reset behavior.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Set_CFUN(const AT_CFUN_Param_T *param);
+Retcode_T At_Set_CFUN(struct AtTransceiver_S *t, const AT_CFUN_Param_T *param);
 
 /**
  * @brief Query the MT functionality state.
  *
- * @param[out] resp
- * Will contain the response to the +CFUN getter command.
+ * @param[in/out] t
+ * Prepared transceiver instance to send and receive on.
+ * @param[in/out] resp
+ * On input must be Will contain the response to the +CFUN getter command.
  *
  * @return A #Retcode_T indicating the result of the requested action.
  */
-Retcode_T At_Get_CFUN(AT_CFUN_Resp_T *resp);
+Retcode_T At_Get_CFUN(struct AtTransceiver_S *t, AT_CFUN_Resp_T *resp);
 
 /* *** URC HANDLERS ********************************************************* */
 
-Retcode_T At_HandleUrc_CREG(void);
+Retcode_T At_HandleUrc_CREG(struct AtTransceiver_S *t);
 
-Retcode_T At_HandleUrc_CGREG(void);
+Retcode_T At_HandleUrc_CGREG(struct AtTransceiver_S *t);
 
-Retcode_T At_HandleUrc_CEREG(void);
+Retcode_T At_HandleUrc_CEREG(struct AtTransceiver_S *t);
 
 #endif /* AT_3GPP_27007_H_ */
 
