@@ -15,6 +15,16 @@ file(GLOB TEST_CODE
    unit/source/ublox/*_unittest.cc
 )
 
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/At3Gpp27007_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/AT_UBlox_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/DnsService_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/HttpService_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/Init_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/Network_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/Power_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/SocketService_unittest.cc$")
+list(FILTER TEST_CODE EXCLUDE REGEX ".*/ModemEmulator_unittest.cc$")
+
 # Valid for all tragets in current project
 include_directories(
    ../source
