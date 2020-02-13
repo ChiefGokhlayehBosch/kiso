@@ -29,5 +29,6 @@ Retcode_T Cellular_Initialize(Cellular_StateChanged_T onStateChanged)
 
 Retcode_T Cellular_Deinitialize(void)
 {
-    return Engine_Deinitialize();
+    Engine_Deinitialize();
+    return RETCODE_OK;
 }
