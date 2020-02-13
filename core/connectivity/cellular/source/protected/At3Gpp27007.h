@@ -13,8 +13,11 @@
 ********************************************************************************/
 
 /**
- * @file
+ * @ingroup KISO_CELLULAR
+ * @defgroup AT3GPP27007 AT 3GPP TS 27.007 Commands
+ * @{
  * @brief AT commands as specified by 3GPP TS 27.007 V15.4.0 (2018-12).
+ * @file
  */
 #ifndef AT3GPP27007_H_
 #define AT3GPP27007_H_
@@ -591,3 +594,5 @@ Retcode_T At_HandleUrc_CGREG(void);
 Retcode_T At_HandleUrc_CEREG(void);
 
 #endif /* AT_3GPP_27007_H_ */
+
+/** @} */

@@ -13,7 +13,10 @@
 ********************************************************************************/
 
 /**
- * @file
+ * @ingroup KISO_CELLULAR
+ *
+ * @defgroup ENGINE Engine
+ * @{
  *
  * @brief The engine of the Cellular driver.
  *
@@ -30,6 +33,8 @@
  * AtResponseParser-module and results are stored into the AtResponse-queue.
  * From there they may be consumed by various modules inside the
  * Cellular-driver.
+ *
+ * @file
  */
 
 #ifndef ENGINE_H_
