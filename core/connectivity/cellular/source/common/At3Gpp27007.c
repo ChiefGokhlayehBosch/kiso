@@ -1,24 +1,18 @@
-/********************************************************************************
-* Copyright (c) 2010-2019 Robert Bosch GmbH
-*
-* This program and the accompanying materials are made available under the
-* terms of the Eclipse Public License 2.0 which is available at
-* http://www.eclipse.org/legal/epl-2.0.
-*
-* SPDX-License-Identifier: EPL-2.0
-*
-* Contributors:
-*    Robert Bosch GmbH - initial contribution
-*
-********************************************************************************/
+/******************************************************************************
+ * Copyright (c) 2010-2019 Robert Bosch GmbH
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *
+ * Contributors:
+ *    Robert Bosch GmbH - transceiver based AT command parsing
+ *    Robert Bosch GmbH - initial contribution
+ *
+ ******************************************************************************/
 
-/* Include all headers which are needed by this file in the following order:
- * Own public header
- * Own protected header
- * Own private header
- * System header (if necessary)
- * Other headers
- */
 #include "Kiso_CellularModules.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_AT_3GPP_27007
 
