@@ -14,418 +14,144 @@
 
 /** LCOV_EXCL_START : start of section where code coverage is ignored. */
 
-#include "Kiso_Basics.h"
-
-#include "Kiso_Retcode_th.hh"
-#include "Kiso_Assert_th.hh"
-
-#include "FreeRTOS_th.hh"
-#include "semphr_th.hh"
-#include "task_th.hh"
-
-#include "Engine_th.hh"
-#include "Queue_th.hh"
-
-#include "AtResponseParser.h"
-
-#undef KISO_MODULE_ID
-#include "AtResponseParser.c"
-#undef KISO_MODULE_ID
-#include "AtResponseQueue.c"
-
-#include <stdarg.h>
-#include <stdio.h>
 #include <gtest.h>
+#include <fff.h>
+#include <queue>
+#include <random>
 
-#ifndef TEST_VERBOSE_MODEM_EMULATOR
-#define TEST_VERBOSE_MODEM_EMULATOR 0
-#endif
-
-struct FakeAnswers_S
+extern "C"
 {
-    const char *Trigger;
-    const char *Answer;
-    struct FakeAnswers_S *_Next;
-};
+#include "Kiso_Assert_th.hh"
+#include "Kiso_Retcode_th.hh"
+#include "Kiso_RingBuffer_th.hh"
+#include "FreeRTOS_th.hh"
+#include "task_th.hh"
+#include "semphr_th.hh"
 
-static struct FakeAnswers_S *RootAnswer = NULL;
-static struct FakeAnswers_S *CurrentAnswer = RootAnswer;
-
-bool ModemEmulator_EnableEcho = true;
-
-/* *** TEST HELPER ********************************************************** */
-#if TEST_VERBOSE_MODEM_EMULATOR
-
-void _printf_mask_cr_lf_(const char *fmt, ...)
-{
-    /* Make this buffer large enough to potentially  hold any AT echo/command*/
-    char buffer[CELLULAR_AT_SEND_BUFFER_SIZE * 2];
-    va_list args;
-    va_start(args, fmt);
-    int len = vsprintf(buffer, fmt, args);
-    va_end(args);
-
-    if (len > (int)sizeof(buffer))
-        exit(1);
-
-    for (int i = 0; i < len; i++)
-    {
-        if (buffer[i] == '\r')
-        {
-            printf("<CR>");
-        }
-        else if (buffer[i] == '\n')
-        {
-            printf("<LF>");
-        }
-        else
-        {
-            putchar(buffer[i]);
-        }
-    }
+#undef KISO_MODULE_ID
+#include "AtTransceiver.c"
 }
 
-#define TEST_PRINTF(fmt, ...)                  \
-    do                                         \
-    {                                          \
-        printf("\tMODEM-EMU|%s|", __func__);   \
-        _printf_mask_cr_lf_(fmt, __VA_ARGS__); \
-        puts("");                              \
-    } while (0)
+static std::stringstream WrittenTransceiverData;
+FAKE_VALUE_FUNC(Retcode_T, FakeTransceiverWriteFunction, const void *, size_t, size_t *);
 
-#else
-
-#define TEST_PRINTF(fmt, ...) \
-    do                        \
-    {                         \
-    } while (0)
-
-#endif
-
-/* *** FAKE ENGINE IMPLEMENTATION ******************************************* */
-Retcode_T Custom_Engine_SendAtCommand(const uint8_t *buffer, uint32_t bufferLength)
+static Retcode_T Fake_AtTransceiver_WriteFunction(const void *data, size_t length, size_t *numBytesWritten)
 {
-    Retcode_T retcode = RETCODE_OK;
-
-    if (ModemEmulator_EnableEcho)
+    for (size_t i = 0; i < length; ++i)
     {
-        /* Echo */
-        TEST_PRINTF("Echo: %.*s", bufferLength, buffer);
-        (void)AtResponseParser_Parse((const uint8_t *)buffer, bufferLength);
+        WrittenTransceiverData.put(((const char *)data)[i]);
     }
 
-    if (NULL != CurrentAnswer)
-    {
-        if (0 == strncmp(CurrentAnswer->Trigger, (const char *)buffer, bufferLength))
-        {
-            TEST_PRINTF("Answer: %s", CurrentAnswer->Answer);
-            (void)AtResponseParser_Parse((const uint8_t *)CurrentAnswer->Answer, strlen(CurrentAnswer->Answer));
-        }
-        CurrentAnswer = CurrentAnswer->_Next;
-    }
-
-    return retcode;
-}
-
-Retcode_T Custom_Engine_SendAtCommandWaitEcho(const uint8_t *buffer, uint32_t bufferLength, uint32_t timeout)
-{
-    if (NULL == buffer)
-    {
-        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_INVALID_PARAM);
-    }
-
-    Retcode_T retcode = Custom_Engine_SendAtCommand(buffer, bufferLength);
-    if (RETCODE_OK != retcode)
-    {
-        return retcode;
-    }
-
-    if (ModemEmulator_EnableEcho)
-    {
-        return AtResponseQueue_WaitForNamedCmdEcho(timeout, buffer, bufferLength - strlen(ENGINE_ATCMD_FOOTER));
-    }
-    else
-    {
-        return RETCODE_OK;
-    }
-}
-
-/* *** FAKE QUEUE IMPLEMENTATION ******************************************** */
-Retcode_T Custom_Queue_Create(Queue_T *Queue, uint8_t *Buffer, uint32_t BufferSize)
-{
-    if (NULL == Queue || NULL == Buffer || 0 == BufferSize)
-    {
-        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_INVALID_PARAM);
-    }
-
-    Queue->Buffer = Buffer;
-    Queue->BufferSize = BufferSize;
-    Queue->PosRead = Queue->PosWrite = Buffer;
-    Queue->Count = 0;
-    Queue->Last = NULL;
-
+    if (numBytesWritten)
+        *numBytesWritten = length;
     return RETCODE_OK;
 }
 
-Retcode_T Custom_Queue_Delete(Queue_T *Queue)
+static void Fake_RingBuffer_Initialize(RingBuffer_T *rb, uint8_t *buf, uint32_t len)
 {
-    if (NULL == Queue)
-    {
-        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_INVALID_PARAM);
-    }
-
-    Queue->Lock = Queue->Wakeup = (xSemaphoreHandle)NULL;
-
-    return RETCODE_OK;
+    KISO_UNUSED(len);
+    rb->Base = buf;
+    rb->Rptr = nullptr;
+    rb->Wptr = nullptr;
+    rb->Size = 0;
 }
 
-Retcode_T Custom_Queue_Put(Queue_T *Queue, const void *Item, uint32_t ItemSize, const void *payload, uint32_t PayloadSize)
+static uint32_t Fake_RingBuffer_Read(RingBuffer_T *rb, uint8_t *buf, uint32_t len)
 {
-    QueueItem_T m;
-    m.Next = NULL;
-    m.Size = ItemSize + PayloadSize;
+    std::queue<uint8_t> *q = reinterpret_cast<std::queue<uint8_t> *>(rb->Base);
+    size_t read;
 
-    uint32_t TotalSize = m.Size + sizeof(QueueItem_T);
-    uint8_t *pos;
-
-    if ((Queue->PosWrite > Queue->PosRead) || 0 == Queue->Count)
+    for (read = 0; read < len && !q->empty(); ++read, q->pop())
     {
-        if (TotalSize <= (Queue->BufferSize - (uint32_t)(Queue->PosWrite - Queue->Buffer)))
-        {
-            /* Write to back */
-            pos = Queue->PosWrite;
-        }
-        else if (TotalSize <= (uint32_t)(Queue->PosRead - Queue->Buffer))
-        {
-            /* Write in front */
-            pos = Queue->Buffer;
-        }
-        else
-        {
-            return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES);
-        }
-    }
-    else if (Queue->PosWrite < Queue->PosRead && TotalSize <= (uint32_t)(Queue->PosRead - Queue->PosWrite))
-    {
-        pos = Queue->PosWrite;
-    }
-    else
-    {
-        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES);
+        buf[read] = q->front();
     }
 
-    /* Add a node */
-    if (Queue->Last)
-    {
-        Queue->Last->Next = pos;
-    }
-
-    Queue->Last = (QueueItem_T *)pos;
-
-    /* Add a message to queue */
-    memcpy(pos, &m, sizeof(QueueItem_T));
-    pos += sizeof(QueueItem_T);
-    memcpy(pos, Item, ItemSize);
-    pos += ItemSize;
-
-    if (NULL != payload)
-    {
-        memcpy(pos, payload, PayloadSize);
-        pos += PayloadSize;
-    }
-
-    Queue->PosWrite = pos;
-    Queue->Count++;
-
-    return RETCODE_OK;
+    return read;
 }
 
-Retcode_T Custom_Queue_Get(Queue_T *Queue, void **Data, uint32_t *DataSize, uint32_t Timeout)
+static uint32_t Fake_RingBuffer_Peek(RingBuffer_T *rb, uint8_t *buf, uint32_t len)
 {
-    KISO_UNUSED(Timeout);
-    if (0 == Queue->Count)
+    std::queue<uint8_t> *q = reinterpret_cast<std::queue<uint8_t> *>(rb->Base);
+    std::queue<uint8_t> qCopy(*q);
+    size_t read;
+
+    for (read = 0; read < len && !qCopy.empty(); ++read, qCopy.pop())
     {
-        /* Insure that a message is available */
-        if (0 == Queue->Count)
-        {
-            return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_UNEXPECTED_BEHAVIOR);
-        }
+        buf[read] = qCopy.front();
     }
 
-    QueueItem_T *m = (QueueItem_T *)Queue->PosRead;
-    *Data = Queue->PosRead + sizeof(QueueItem_T);
-    if (DataSize)
+    return read;
+}
+
+static uint32_t Fake_RingBuffer_Write(RingBuffer_T *rb, const uint8_t *buf, uint32_t len)
+{
+    std::queue<uint8_t> *q = reinterpret_cast<std::queue<uint8_t> *>(rb->Base);
+    size_t written;
+
+    for (written = 0; written < len; ++written)
     {
-        *DataSize = m->Size;
+        q->push(buf[written]);
     }
 
-    return RETCODE_OK;
+    return written;
 }
 
-Retcode_T Custom_Queue_Purge(Queue_T *Queue)
+/**
+ * @brief Little helper for generating random numbers in specified range.
+ */
+int random(int min, int max)
 {
-    if (0 == Queue->Count)
-    {
-        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_FAILURE);
-    }
+    static std::random_device rd;
+    static std::mt19937 engine(rd());
 
-    QueueItem_T *m = (QueueItem_T *)Queue->PosRead;
-    Queue->PosRead = m->Next;
-    Queue->Count--;
+    std::uniform_int_distribution<> dist(min, max);
 
-    if (NULL == Queue->PosRead)
-    {
-        Queue->PosRead = Queue->PosWrite = Queue->Buffer;
-        Queue->Last = NULL;
-    }
-
-    return RETCODE_OK;
+    return dist(engine);
 }
 
-uint32_t Custom_Queue_Count(const Queue_T *Queue)
-{
-    return Queue->Count;
-}
-
-void Custom_Queue_Clear(Queue_T *Queue)
-{
-    Queue->PosRead = Queue->PosWrite = Queue->Buffer;
-    Queue->Count = 0;
-    Queue->Last = NULL;
-}
-
-/* *** SETUP/TEARDOWN HELPER ********************************************************* */
-
-void ConnectFakeModem(void)
-{
-    ModemEmulator_EnableEcho = true;
-
-    Engine_SendAtCommand_fake.custom_fake = Custom_Engine_SendAtCommand;
-    Engine_SendAtCommandWaitEcho_fake.custom_fake = Custom_Engine_SendAtCommandWaitEcho;
-
-    Queue_Clear_fake.custom_fake = Custom_Queue_Clear;
-    Queue_Count_fake.custom_fake = Custom_Queue_Count;
-    Queue_Create_fake.custom_fake = Custom_Queue_Create;
-    Queue_Delete_fake.custom_fake = Custom_Queue_Delete;
-    Queue_Get_fake.custom_fake = Custom_Queue_Get;
-    Queue_Purge_fake.custom_fake = Custom_Queue_Purge;
-    Queue_Put_fake.custom_fake = Custom_Queue_Put;
-
-    AtResponseQueue_Init();
-    AtResponseQueue_RegisterWithResponseParser();
-    AtResponseParser_Reset();
-}
-
-void DeleteFakeAnswers(void)
-{
-    struct FakeAnswers_S *cur = RootAnswer;
-    RootAnswer = NULL;
-    CurrentAnswer = NULL;
-    while (NULL != cur)
-    {
-        struct FakeAnswers_S *next = cur->_Next;
-        free(cur);
-        cur = next;
-    }
-}
-
-void DisconnectFakeModem(void)
-{
-    Engine_SendAtCommand_fake.custom_fake = NULL;
-    Engine_SendAtCommandWaitEcho_fake.custom_fake = NULL;
-
-    Queue_Clear_fake.custom_fake = NULL;
-    Queue_Count_fake.custom_fake = NULL;
-    Queue_Create_fake.custom_fake = NULL;
-    Queue_Delete_fake.custom_fake = NULL;
-    Queue_Get_fake.custom_fake = NULL;
-    Queue_Purge_fake.custom_fake = NULL;
-    Queue_Put_fake.custom_fake = NULL;
-
-    DeleteFakeAnswers();
-}
-
-void AddFakeAnswer(const char *trigger, const char *answer)
-{
-    struct FakeAnswers_S *newFakeAnswer = (struct FakeAnswers_S *)malloc(sizeof(struct FakeAnswers_S));
-    if (NULL == newFakeAnswer)
-    {
-        exit(1);
-    }
-
-    newFakeAnswer->Trigger = trigger;
-    newFakeAnswer->Answer = answer;
-    newFakeAnswer->_Next = NULL;
-
-    if (RootAnswer == NULL)
-    {
-        RootAnswer = newFakeAnswer;
-        CurrentAnswer = newFakeAnswer;
-    }
-    else
-    {
-        struct FakeAnswers_S *cur = RootAnswer;
-        while (NULL != cur->_Next)
-        {
-            cur = cur->_Next;
-        }
-        cur->_Next = newFakeAnswer;
-    }
-}
-
-class TS_ModemTest : public testing::Test
+class TS_ReadableAndWritableTransceiver : public testing::Test
 {
 protected:
-    char *Trigger;
-    char *Answer;
+    struct AtTransceiver_S transceiver;
+    struct AtTransceiver_S *t = &transceiver;
+    std::queue<uint8_t> transceiverRxBuffer;
 
-    virtual void SetUp()
+    virtual void SetUp() override
     {
         FFF_RESET_HISTORY();
 
-        ConnectFakeModem();
+        RESET_FAKE(xSemaphoreCreateBinaryStatic);
+        RESET_FAKE(xSemaphoreCreateMutexStatic);
+        RESET_FAKE(RingBuffer_Initialize);
+        RESET_FAKE(RingBuffer_Read);
+        RESET_FAKE(RingBuffer_Peek);
+        RESET_FAKE(RingBuffer_Write);
+        RESET_FAKE(FakeTransceiverWriteFunction);
 
-        Trigger = NULL;
-        Answer = NULL;
-    }
+        WrittenTransceiverData.str("");
+        WrittenTransceiverData.clear();
 
-    virtual void TearDown()
-    {
-        DisconnectFakeModem();
+        xSemaphoreCreateBinaryStatic_fake.return_val = (SemaphoreHandle_t)1;
+        xSemaphoreCreateMutexStatic_fake.return_val = (SemaphoreHandle_t)1;
+        RingBuffer_Initialize_fake.custom_fake = Fake_RingBuffer_Initialize;
+        RingBuffer_Read_fake.custom_fake = Fake_RingBuffer_Read;
+        RingBuffer_Peek_fake.custom_fake = Fake_RingBuffer_Peek;
+        RingBuffer_Write_fake.custom_fake = Fake_RingBuffer_Write;
+        FakeTransceiverWriteFunction_fake.custom_fake = Fake_AtTransceiver_WriteFunction;
 
-        if (NULL != Trigger)
+        Retcode_T rc = AtTransceiver_Initialize(t, reinterpret_cast<uint8_t *>(&transceiverRxBuffer), 0, FakeTransceiverWriteFunction);
+        if (RETCODE_OK != rc)
         {
-            free(Trigger);
-            Trigger = NULL;
+            std::cerr << "Failed to set up TS_ReadableAndWritableTransceiver" << std::endl;
+            exit(1);
         }
 
-        if (NULL != Answer)
+        rc = AtTransceiver_PrepareWrite(t, (enum AtTransceiver_WriteOption_E)((int)ATTRANSCEIVER_WRITEOPTION_NOBUFFER | (int)ATTRANSCEIVER_WRITEOPTION_NOECHO), nullptr, 0);
+        if (RETCODE_OK != rc)
         {
-            free(Answer);
-            Answer = NULL;
+            std::cerr << "Failed to set up TS_ReadableAndWritableTransceiver" << std::endl;
+            exit(1);
         }
-    }
-
-    virtual const char *FormatIntoNewBuffer(char **buffer, const char *fmt, ...)
-    {
-        if (NULL != *buffer)
-            exit(1);
-
-        va_list args;
-        va_start(args, fmt);
-        int len = vsnprintf(NULL, 0, fmt, args);
-        va_end(args);
-        if (len <= 0)
-            exit(1);
-
-        va_start(args, fmt);
-        *buffer = (char *)malloc(len + 1);
-        if (NULL == *buffer)
-            exit(1);
-        vsnprintf(*buffer, len + 1, fmt, args);
-        va_end(args);
-
-        return *buffer;
     }
 };
 
