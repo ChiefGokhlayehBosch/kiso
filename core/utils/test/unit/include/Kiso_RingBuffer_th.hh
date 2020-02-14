@@ -50,6 +50,7 @@ typedef struct RingBuffer_S
 FAKE_VOID_FUNC(RingBuffer_Initialize, RingBuffer_T *, uint8_t *, uint32_t)
 FAKE_VALUE_FUNC(uint32_t, RingBuffer_Write, RingBuffer_T *, const uint8_t *, uint32_t)
 FAKE_VALUE_FUNC(uint32_t, RingBuffer_Read, RingBuffer_T *, uint8_t *, uint32_t)
+FAKE_VALUE_FUNC(uint32_t, RingBuffer_Peek, RingBuffer_T *, uint8_t *, uint32_t)
 FAKE_VOID_FUNC(RingBuffer_Reset, RingBuffer_T *)
 
 #endif /* KISO_RINGBUFFER_TH_HH_ */
