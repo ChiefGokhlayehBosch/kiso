@@ -32,6 +32,7 @@
 
 #define ATTRANSCEIVER_DUMMYBUFFERSIZE (1U)
 static_assert(ATTRANSCEIVER_DUMMYBUFFERSIZE >= 1, "must be at least be one byte big");
+#define ATTRANSCEIVER_SKIPEMPTYLINESLIMIT (5U)
 
 #define ATTRANSCEIVER_STRINGIFY(x) #x
 #define ATTRANSCEIVER_TOSTRING(x) (ATTRANSCEIVER_STRINGIFY(x))
@@ -898,16 +899,40 @@ Retcode_T AtTransceiver_ReadU32(struct AtTransceiver_S *t, uint32_t *x, int base
 
 Retcode_T AtTransceiver_ReadCode(struct AtTransceiver_S *t, enum AtTransceiver_ResponseCode_E *code, TickType_t timeout)
 {
-    Retcode_T rc = SkipUntil(t, ATTRANSCEIVER_CONCAT(ATTRANSCEIVER_ARGSEPARATOR, ATTRANSCEIVER_S4), &timeout);
-    if (rc)
-        return rc;
-    /* Skipped preceeding '<S3><S4>' in theoretical response:
+
+    /* Due to the way arguments are consumed, we can't be sure where exactly we
+     * stand in the response code. Depending on preceeding argument handling,
+     * our response may look like this:
+     * |<S3><S4><verbose_code><S3><S4>
+     * ^ We could be here.
+     *
+     * Or like this:
      * <S3><S4>|<verbose_code><S3><S4>
-     *         ^ We should now be here. */
+     *         ^ We could here.
+     *
+     * To deal with this the following implementation is fairly lax. We simply
+     * consume "empty" lines (i.e. sequences of <S3><S4> with nothing in between)
+     */
+
     char dummy[sizeof("INVALID COMMAND LINE")]; /* size of biggest verbose response code + '\0' */
-    size_t len = sizeof(dummy);
-    rc = ReadUntil(t, dummy, &len, "\r", &timeout);
-    if (rc)
+    size_t len;
+    Retcode_T rc = RETCODE_OK;
+    for (unsigned int i = 0; i < ATTRANSCEIVER_SKIPEMPTYLINESLIMIT && RETCODE_OK == rc; ++i)
+    {
+        len = sizeof(dummy);
+        rc = ReadUntil(t, dummy, &len, ATTRANSCEIVER_S3, &timeout);
+        if (len <= 0U)
+        {
+            /* We assume the next character is S4. Skip it! */
+            (void)SkipAmount(t, 1U, &timeout);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if (RETCODE_OK != rc)
         return rc;
 
     enum AtTransceiver_ResponseCode_E c = ATTRANSCEIVER_RESPONSECODE_MAX;
