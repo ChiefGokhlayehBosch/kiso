@@ -785,6 +785,200 @@ TEST_F(TS_PopUntil, TwoMsgWithTimeout_Fail)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen, this->GetFakeRxByteCount());
 }
 
+class TS_PeekUntil : public TS_FakeRx
+{
+};
+
+TEST_F(TS_PeekUntil, CrNearEndOfString_Success)
+{
+    const char *needle = "\r";
+    string totalData = "+COPS:0,2,3,4\r\n";
+    string expData = totalData.substr(0, totalData.find(needle));
+    char actData[totalData.length() + 1];
+    size_t actDataLen = totalData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(totalData);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, NULL);
+
+    ASSERT_EQ(RETCODE_OK, rc);
+    ASSERT_EQ(expData.length(), actDataLen);
+    actData[actDataLen] = '\0';
+    ASSERT_EQ(0, strncmp(expData.c_str(), actData, actDataLen));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, LfEndOfString_Success)
+{
+    const char *needle = "\n";
+    string totalData = "+COPS:0,2,3,4\r\n";
+    string expData = totalData.substr(0, totalData.find(needle));
+    char actData[totalData.length() + 1];
+    size_t actDataLen = totalData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(totalData);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, NULL);
+
+    ASSERT_EQ(RETCODE_OK, rc);
+    ASSERT_EQ(expData.length(), actDataLen);
+    actData[actDataLen] = '\0';
+    ASSERT_EQ(0, strncmp(expData.c_str(), actData, actDataLen));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, LfStartOfString_Success)
+{
+    const char *needle = "\n";
+    string totalData = "\n+COPS:0,2,3,4";
+    string expData = totalData.substr(0, totalData.find(needle));
+    char actData[totalData.length() + 1];
+    size_t actDataLen = totalData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(totalData);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, NULL);
+
+    ASSERT_EQ(RETCODE_OK, rc);
+    ASSERT_EQ(expData.length(), actDataLen);
+    actData[actDataLen] = '\0';
+    ASSERT_EQ(0, strncmp(expData.c_str(), actData, actDataLen));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, LfStartOfStringIgnoreMultipleOccurrences_Success)
+{
+    const char *needle = "\n";
+    string totalData = "\n+COPS:0,2,3,4\r\n";
+    string expData = totalData.substr(0, totalData.find(needle));
+    char actData[totalData.length() + 1];
+    size_t actDataLen = totalData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(totalData);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, NULL);
+
+    ASSERT_EQ(RETCODE_OK, rc);
+    ASSERT_EQ(expData.length(), actDataLen);
+    actData[actDataLen] = '\0';
+    ASSERT_EQ(0, strncmp(expData.c_str(), actData, actDataLen));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, CrOrLfNearEndOfString_Success)
+{
+    const char *needle = "\r\n";
+    string totalData = "+COPS:0,2,3,4\r\n";
+    string expData = totalData.substr(0, totalData.find(needle));
+    char actData[totalData.length() + 1];
+    size_t actDataLen = totalData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(totalData);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, NULL);
+
+    ASSERT_EQ(RETCODE_OK, rc);
+    ASSERT_EQ(expData.length(), actDataLen);
+    actData[actDataLen] = '\0';
+    ASSERT_EQ(0, strncmp(expData.c_str(), actData, actDataLen));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, CrInSecondMessage_Success)
+{
+    TickType_t tickLimit = 10;
+    const char *needle = "\r";
+    string totalData = "+COPS:0,2,3,4\r\n";
+    string totalData1 = totalData.substr(0, totalData.length() / 2);
+    string totalData2 = totalData.substr(totalData1.length());
+    string expData = totalData.substr(0, totalData.find(needle));
+    char actData[totalData.length() + 1];
+    size_t actDataLen = totalData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(totalData1, tickLimit / 2);
+    this->EnqueueMessage(totalData2, tickLimit / 2);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, &tickLimit);
+
+    ASSERT_EQ(RETCODE_OK, rc);
+    ASSERT_EQ(expData.length(), actDataLen);
+    actData[actDataLen] = '\0';
+    ASSERT_EQ(0, strncmp(expData.c_str(), actData, actDataLen));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, InsufficentSearchBuffer_Fail)
+{
+    const char *needle = "\n";
+    string expData = "+COPS:0,2,3,4";
+    char actData[expData.length() + 1];
+    size_t actDataLen = expData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(expData);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, NULL);
+
+    ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES), rc);
+    ASSERT_EQ(expData.length(), actDataLen);
+    actData[actDataLen] = '\0';
+    ASSERT_EQ(0, strncmp(expData.c_str(), actData, actDataLen));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, PeekLengthZero_Fail)
+{
+    const char *needle = "\n";
+    string expData = "+COPS:0,2,3,4";
+    char actData[expData.length() + 1];
+    size_t actDataLen = 0;
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(expData);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, NULL);
+
+    ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES), rc);
+    ASSERT_EQ(0U, actDataLen);
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, OneMsgWithTimeout_Fail)
+{
+    TickType_t tickLimit = 1000;
+    const char *needle = "\n";
+    string expData = "+COPS:0,2,3,4\r\n";
+    char actData[expData.length() + 1];
+    size_t actDataLen = expData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(expData, tickLimit * 2);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, &tickLimit);
+
+    ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT), rc);
+    ASSERT_EQ(0U, actDataLen);
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_PeekUntil, TwoMsgWithTimeout_Fail)
+{
+    TickType_t tickLimit = 10;
+    const char *needle = "\r";
+    string totalData = "+COPS:0,2,3,4\r\n";
+    string totalData1 = totalData.substr(0, totalData.length() / 2);
+    string totalData2 = totalData.substr(totalData.length() / 2);
+    string expData = totalData.substr(0, totalData.find(needle));
+    char actData[totalData.length() + 1];
+    size_t actDataLen = totalData.length();
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(totalData1, tickLimit);
+    this->EnqueueMessage(totalData2, 100);
+
+    Retcode_T rc = PeekUntil(&t, actData, &actDataLen, needle, &tickLimit);
+
+    ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT), rc);
+    ASSERT_EQ(totalData1.length(), actDataLen);
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
 class TS_SkipUntil : public TS_FakeRx
 {
 };

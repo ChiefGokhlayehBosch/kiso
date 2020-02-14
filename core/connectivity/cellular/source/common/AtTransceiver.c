@@ -71,6 +71,7 @@ static size_t Peek(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t 
 static size_t Pop(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t *timeout);
 static size_t Skip(struct AtTransceiver_S *t, size_t len, TickType_t *timeout);
 static Retcode_T PopUntil(struct AtTransceiver_S *t, void *buf, size_t *len, const void *anyOfThese, TickType_t *timeout);
+static Retcode_T PeekUntil(struct AtTransceiver_S *t, void *buf, size_t *len, const void *anyOfThese, TickType_t *timeout);
 static Retcode_T SkipUntil(struct AtTransceiver_S *t, const void *anyOfThese, TickType_t *timeout);
 
 static const struct AtTransceiver_ResponseCode_S ResponseCodes[ATTRANSCEIVER_RESPONSECODE_MAX] = {
@@ -336,6 +337,50 @@ static Retcode_T PopUntil(struct AtTransceiver_S *t, void *buf, size_t *len, con
     {
         *len = i;
         return RETCODE_OK;
+    }
+    else
+    {
+        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES);
+    }
+}
+
+KISO_UNUSED_FUNC(static Retcode_T PeekUntil(struct AtTransceiver_S *t, void *buf, size_t *len, const void *anyOfThese, TickType_t *timeout))
+{
+    TickType_t totalTicksSlept = 0;
+    const TickType_t maxTimeout = timeout != NULL ? *timeout : 0;
+    bool matchFound = false;
+    bool hitTimeout = false;
+    size_t i;
+    size_t r = 0;
+
+    for (i = 0; i < *len && !matchFound && !hitTimeout; ++i)
+    {
+        r = (size_t)RingBuffer_Peek(&t->RxRingBuffer, (uint8_t *)buf, i + 1);
+
+        if (r < i + 1)
+        {
+            hitTimeout = WaitForMoreRx(t->RxWakeupHandle, maxTimeout, &totalTicksSlept);
+        }
+        else
+        {
+            for (size_t j = 0; ((const char *)anyOfThese)[j] != '\0' && !matchFound; ++j)
+            {
+                if (((char *)buf)[i] == ((const char *)anyOfThese)[j])
+                {
+                    matchFound = true;
+                    r--;
+                }
+            }
+        }
+    }
+    *len = r;
+    if (matchFound)
+    {
+        return RETCODE_OK;
+    }
+    else if (hitTimeout)
+    {
+        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT);
     }
     else
     {
