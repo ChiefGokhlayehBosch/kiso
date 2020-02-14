@@ -59,6 +59,7 @@ int random(int min, int max)
 }
 
 static uint32_t FakeRx_RingBuffer_Read(RingBuffer_T *rb, uint8_t *buf, uint32_t len);
+static uint32_t FakeRx_RingBuffer_Peek(RingBuffer_T *rb, uint8_t *buf, uint32_t len);
 static BaseType_t FakeRx_xSemaphoreTake(SemaphoreHandle_t semphr, TickType_t timeout);
 
 class Message : public queue<uint8_t>
@@ -101,10 +102,12 @@ protected:
         FFF_RESET_HISTORY();
 
         RESET_FAKE(RingBuffer_Read);
+        RESET_FAKE(RingBuffer_Peek);
         RESET_FAKE(RingBuffer_Write);
         RESET_FAKE(xTaskGetTickCount);
 
         RingBuffer_Read_fake.custom_fake = FakeRx_RingBuffer_Read;
+        RingBuffer_Peek_fake.custom_fake = FakeRx_RingBuffer_Peek;
         xSemaphoreTake_fake.custom_fake = FakeRx_xSemaphoreTake;
 
         t.RxRingBuffer.Base = (uint8_t *)&fakeRxBytes;
@@ -187,6 +190,20 @@ static uint32_t FakeRx_RingBuffer_Read(RingBuffer_T *rb, uint8_t *buf, uint32_t 
     return read;
 }
 
+static uint32_t FakeRx_RingBuffer_Peek(RingBuffer_T *rb, uint8_t *buf, uint32_t len)
+{
+    std::queue<uint8_t> *q = reinterpret_cast<std::queue<uint8_t> *>(rb->Base);
+    std::queue<uint8_t> qCopy(*q);
+    size_t read;
+
+    for (read = 0; read < len && !qCopy.empty(); ++read, qCopy.pop())
+    {
+        buf[read] = qCopy.front();
+    }
+
+    return read;
+}
+
 static BaseType_t FakeRx_xSemaphoreTake(SemaphoreHandle_t semphr, TickType_t timeout)
 {
     KISO_UNUSED(timeout);
@@ -240,11 +257,11 @@ TEST_F(TS_FakeRx, Smoke_EnqueueAndTakeMultiple_Success)
     }
 }
 
-class TS_Read : public TS_FakeRx
+class TS_Peek : public TS_FakeRx
 {
 };
 
-TEST_F(TS_Read, OneMsg_Success)
+TEST_F(TS_Peek, OneMsg_Success)
 {
     const char *expData = "+COPS:0,2,3,4\r\n";
     size_t expDataLen = strlen(expData);
@@ -252,15 +269,15 @@ TEST_F(TS_Read, OneMsg_Success)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(expData, expDataLen);
 
-    size_t read = Read(&t, actData, expDataLen, NULL);
+    size_t read = Peek(&t, actData, expDataLen, NULL);
 
     ASSERT_EQ(expDataLen, read);
     actData[read] = '\0';
     ASSERT_STREQ(expData, actData);
-    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_Read, TwoMsg_Success)
+TEST_F(TS_Peek, TwoMsg_Success)
 {
     const char *expData = "+COPS:0,2,3,4\r\n";
     size_t expDataLen = strlen(expData);
@@ -273,15 +290,15 @@ TEST_F(TS_Read, TwoMsg_Success)
     this->EnqueueMessage(expData1, expDataLen1);
     this->EnqueueMessage(expData2, expDataLen2);
 
-    size_t read = Read(&t, actData, expDataLen, NULL);
+    size_t read = Peek(&t, actData, expDataLen, NULL);
 
     ASSERT_EQ(expDataLen, read);
     actData[read] = '\0';
     ASSERT_STREQ(expData, actData);
-    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_Read, ManyMsg_Success)
+TEST_F(TS_Peek, ManyMsg_Success)
 {
     size_t expDataLen = random(500, 2000);
     cout << "Total expected data length " << expDataLen << " bytes." << endl;
@@ -302,15 +319,15 @@ TEST_F(TS_Read, ManyMsg_Success)
     char actData[expDataLen + 1];
     memset(actData, 0U, sizeof(actData));
 
-    size_t read = Read(&t, actData, expDataLen, NULL);
+    size_t read = Peek(&t, actData, expDataLen, NULL);
 
     ASSERT_EQ(expDataLen, read);
     actData[read] = '\0';
     ASSERT_STREQ(expData, actData);
-    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_Read, OneMsgWithTimeout_Fail)
+TEST_F(TS_Peek, OneMsgWithTimeout_Fail)
 {
     TickType_t tickLimit = 10;
     const char *expData = "+COPS:0,2,3,4\r\n";
@@ -319,15 +336,15 @@ TEST_F(TS_Read, OneMsgWithTimeout_Fail)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(expData, expDataLen, tickLimit * 2);
 
-    size_t read = Read(&t, actData, expDataLen, &tickLimit);
+    size_t read = Peek(&t, actData, expDataLen, &tickLimit);
 
     ASSERT_EQ(0U, read);
     actData[read] = '\0';
     ASSERT_STRNE(expData, actData);
-    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_Read, TwoMsgWithTimeoutInBetween_PartialSuccess)
+TEST_F(TS_Peek, TwoMsgWithTimeoutInBetween_PartialSuccess)
 {
     TickType_t tickLimit = 10;
     const char *expData = "+COPS:0,2,3,4\r\n";
@@ -341,15 +358,15 @@ TEST_F(TS_Read, TwoMsgWithTimeoutInBetween_PartialSuccess)
     this->EnqueueMessage(expData1, expDataLen1, tickLimit);
     this->EnqueueMessage(expData2, expDataLen2, 100);
 
-    size_t read = Read(&t, actData, expDataLen, &tickLimit);
+    size_t read = Peek(&t, actData, expDataLen, &tickLimit);
 
     ASSERT_EQ(expDataLen1, read);
     actData[read] = '\0';
     ASSERT_EQ(0, strncmp(expData1, actData, read));
-    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_Read, ManyMsgWithTimeoutInBetween_PartialSuccess)
+TEST_F(TS_Peek, ManyMsgWithTimeoutInBetween_PartialSuccess)
 {
     TickType_t tickLimit = random(1000, 10000);
     TickType_t totalEnqueuedDelay = 0;
@@ -376,7 +393,6 @@ TEST_F(TS_Read, ManyMsgWithTimeoutInBetween_PartialSuccess)
         {
             chunkDelay = random(1, tickLimit);
         }
-        cout << "Enqueueing chunk of " << chunkSize << " bytes with delay of " << chunkDelay << " ticks..." << endl;
         totalEnqueuedDelay += chunkDelay;
         if (totalEnqueuedDelay <= tickLimit)
         {
@@ -391,6 +407,7 @@ TEST_F(TS_Read, ManyMsgWithTimeoutInBetween_PartialSuccess)
                 printed = true;
             }
         }
+        cout << "Enqueueing chunk of " << chunkSize << " bytes with delay of " << chunkDelay << " ticks..." << endl;
 
         this->EnqueueMessage(expData + enqueuedByteCount, chunkSize, chunkDelay);
         enqueuedByteCount += chunkSize;
@@ -398,7 +415,172 @@ TEST_F(TS_Read, ManyMsgWithTimeoutInBetween_PartialSuccess)
     char actData[enqueuedByteCount + 1];
     memset(actData, 0U, sizeof(actData));
 
-    size_t read = Read(&t, actData, enqueuedByteCount, &tickLimit);
+    size_t read = Peek(&t, actData, enqueuedByteCount, &tickLimit);
+
+    ASSERT_EQ(expPartialDataLen, read);
+    actData[read] = '\0';
+    ASSERT_EQ(0, strncmp(expData, actData, read));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount(), this->GetFakeRxByteCount());
+}
+
+class TS_Pop : public TS_FakeRx
+{
+};
+
+TEST_F(TS_Pop, OneMsg_Success)
+{
+    const char *expData = "+COPS:0,2,3,4\r\n";
+    size_t expDataLen = strlen(expData);
+    char actData[expDataLen + 1];
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(expData, expDataLen);
+
+    size_t read = Pop(&t, actData, expDataLen, NULL);
+
+    ASSERT_EQ(expDataLen, read);
+    actData[read] = '\0';
+    ASSERT_STREQ(expData, actData);
+    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_Pop, TwoMsg_Success)
+{
+    const char *expData = "+COPS:0,2,3,4\r\n";
+    size_t expDataLen = strlen(expData);
+    const char *expData1 = expData;
+    size_t expDataLen1 = expDataLen / 2;
+    const char *expData2 = expData + expDataLen1;
+    size_t expDataLen2 = expDataLen - expDataLen1;
+    char actData[expDataLen + 1];
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(expData1, expDataLen1);
+    this->EnqueueMessage(expData2, expDataLen2);
+
+    size_t read = Pop(&t, actData, expDataLen, NULL);
+
+    ASSERT_EQ(expDataLen, read);
+    actData[read] = '\0';
+    ASSERT_STREQ(expData, actData);
+    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_Pop, ManyMsg_Success)
+{
+    size_t expDataLen = random(500, 2000);
+    cout << "Total expected data length " << expDataLen << " bytes." << endl;
+    char expData[expDataLen + 1];
+    for (size_t i = 0; i < expDataLen; ++i)
+    {
+        expData[i] = random('A', 'Z');
+    }
+    expData[expDataLen] = '\0';
+    size_t enqueuedByteCount = 0;
+    while (enqueuedByteCount < expDataLen)
+    {
+        size_t chunkSize = random(1, expDataLen - enqueuedByteCount);
+        cout << "Enqueueing chunk of " << chunkSize << " bytes..." << endl;
+        this->EnqueueMessage(expData + enqueuedByteCount, chunkSize);
+        enqueuedByteCount += chunkSize;
+    }
+    char actData[expDataLen + 1];
+    memset(actData, 0U, sizeof(actData));
+
+    size_t read = Pop(&t, actData, expDataLen, NULL);
+
+    ASSERT_EQ(expDataLen, read);
+    actData[read] = '\0';
+    ASSERT_STREQ(expData, actData);
+    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_Pop, OneMsgWithTimeout_Fail)
+{
+    TickType_t tickLimit = 10;
+    string expData = "+COPS:0,2,3,4\r\n";
+    char actData[expData.length() + 1];
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(expData, tickLimit * 2);
+
+    size_t read = Pop(&t, actData, expData.length(), &tickLimit);
+
+    ASSERT_EQ(0U, read);
+    actData[read] = '\0';
+    ASSERT_STRNE(expData.c_str(), actData);
+    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_Pop, TwoMsgWithTimeoutInBetween_PartialSuccess)
+{
+    TickType_t tickLimit = 10;
+    const char *expData = "+COPS:0,2,3,4\r\n";
+    size_t expDataLen = strlen(expData);
+    const char *expData1 = expData;
+    size_t expDataLen1 = expDataLen / 2;
+    const char *expData2 = expData + expDataLen1;
+    size_t expDataLen2 = expDataLen - expDataLen1;
+    char actData[expDataLen + 1];
+    memset(actData, 0U, sizeof(actData));
+    this->EnqueueMessage(expData1, expDataLen1, tickLimit);
+    this->EnqueueMessage(expData2, expDataLen2, 100);
+
+    size_t read = Pop(&t, actData, expDataLen, &tickLimit);
+
+    ASSERT_EQ(expDataLen1, read);
+    actData[read] = '\0';
+    ASSERT_EQ(0, strncmp(expData1, actData, read));
+    ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
+}
+
+TEST_F(TS_Pop, ManyMsgWithTimeoutInBetween_PartialSuccess)
+{
+    TickType_t tickLimit = random(1000, 10000);
+    TickType_t totalEnqueuedDelay = 0;
+    size_t toBeEnqueuedCount = random(500, 2000);
+    size_t expPartialDataLen = 0;
+    cout << "Total to-be-enqueued data length " << toBeEnqueuedCount << " bytes." << endl;
+    cout << "Will limit timeout to " << tickLimit << " ticks." << endl;
+    char expData[toBeEnqueuedCount + 1];
+    for (size_t i = 0; i < toBeEnqueuedCount; ++i)
+    {
+        expData[i] = random('A', 'Z');
+    }
+    expData[toBeEnqueuedCount] = '\0';
+    size_t enqueuedByteCount = 0;
+    while (enqueuedByteCount < toBeEnqueuedCount)
+    {
+        size_t chunkSize = random(1, toBeEnqueuedCount - enqueuedByteCount);
+        TickType_t chunkDelay = 0;
+        if (enqueuedByteCount + chunkSize >= toBeEnqueuedCount)
+        {
+            chunkDelay = tickLimit; /* Make sure the last message will always time out */
+        }
+        else
+        {
+            chunkDelay = random(1, tickLimit);
+        }
+        totalEnqueuedDelay += chunkDelay;
+        if (totalEnqueuedDelay <= tickLimit)
+        {
+            expPartialDataLen += chunkSize;
+        }
+        else
+        {
+            static bool printed = false;
+            if (!printed)
+            {
+                cout << ">>>Timout should happen here<<<" << endl;
+                printed = true;
+            }
+        }
+        cout << "Enqueueing chunk of " << chunkSize << " bytes with delay of " << chunkDelay << " ticks..." << endl;
+
+        this->EnqueueMessage(expData + enqueuedByteCount, chunkSize, chunkDelay);
+        enqueuedByteCount += chunkSize;
+    }
+    char actData[enqueuedByteCount + 1];
+    memset(actData, 0U, sizeof(actData));
+
+    size_t read = Pop(&t, actData, enqueuedByteCount, &tickLimit);
 
     ASSERT_EQ(expPartialDataLen, read);
     actData[read] = '\0';
@@ -406,11 +588,11 @@ TEST_F(TS_Read, ManyMsgWithTimeoutInBetween_PartialSuccess)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - read, this->GetFakeRxByteCount());
 }
 
-class TS_ReadUntil : public TS_FakeRx
+class TS_PopUntil : public TS_FakeRx
 {
 };
 
-TEST_F(TS_ReadUntil, CrNearEndOfString_Success)
+TEST_F(TS_PopUntil, CrNearEndOfString_Success)
 {
     const char *needle = "\r";
     string totalData = "+COPS:0,2,3,4\r\n";
@@ -420,7 +602,7 @@ TEST_F(TS_ReadUntil, CrNearEndOfString_Success)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(totalData);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, NULL);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, NULL);
 
     ASSERT_EQ(RETCODE_OK, rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -429,7 +611,7 @@ TEST_F(TS_ReadUntil, CrNearEndOfString_Success)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen - 1, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, LfEndOfString_Success)
+TEST_F(TS_PopUntil, LfEndOfString_Success)
 {
     const char *needle = "\n";
     string totalData = "+COPS:0,2,3,4\r\n";
@@ -439,7 +621,7 @@ TEST_F(TS_ReadUntil, LfEndOfString_Success)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(totalData);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, NULL);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, NULL);
 
     ASSERT_EQ(RETCODE_OK, rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -448,7 +630,7 @@ TEST_F(TS_ReadUntil, LfEndOfString_Success)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen - 1, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, CrOrLfNearEndOfString_Success)
+TEST_F(TS_PopUntil, CrOrLfNearEndOfString_Success)
 {
     const char *needle = "\r\n";
     string totalData = "+COPS:0,2,3,4\r\n";
@@ -458,7 +640,7 @@ TEST_F(TS_ReadUntil, CrOrLfNearEndOfString_Success)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(totalData);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, NULL);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, NULL);
 
     ASSERT_EQ(RETCODE_OK, rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -467,7 +649,7 @@ TEST_F(TS_ReadUntil, CrOrLfNearEndOfString_Success)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen - 1, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, CrInSecondMessage_Success)
+TEST_F(TS_PopUntil, CrInSecondMessage_Success)
 {
     TickType_t tickLimit = 10;
     const char *needle = "\r";
@@ -481,7 +663,7 @@ TEST_F(TS_ReadUntil, CrInSecondMessage_Success)
     this->EnqueueMessage(totalData1, tickLimit / 2);
     this->EnqueueMessage(totalData2, tickLimit / 2);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, &tickLimit);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, &tickLimit);
 
     ASSERT_EQ(RETCODE_OK, rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -490,7 +672,7 @@ TEST_F(TS_ReadUntil, CrInSecondMessage_Success)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen - 1, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, LfBeginningOfString_Success)
+TEST_F(TS_PopUntil, LfBeginningOfString_Success)
 {
     const char *needle = "\n";
     string totalData = "\n+COPS:0,2,3,4";
@@ -500,7 +682,7 @@ TEST_F(TS_ReadUntil, LfBeginningOfString_Success)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(totalData);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, NULL);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, NULL);
 
     ASSERT_EQ(RETCODE_OK, rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -509,7 +691,7 @@ TEST_F(TS_ReadUntil, LfBeginningOfString_Success)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen - 1, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, LfBeginningOfStringIgnoreMultipleOccurences_Success)
+TEST_F(TS_PopUntil, LfBeginningOfStringIgnoreMultipleOccurences_Success)
 {
     const char *needle = "\n";
     string totalData = "\n+COPS:0,2,3,4\r\n";
@@ -519,7 +701,7 @@ TEST_F(TS_ReadUntil, LfBeginningOfStringIgnoreMultipleOccurences_Success)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(totalData);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, NULL);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, NULL);
 
     ASSERT_EQ(RETCODE_OK, rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -528,7 +710,7 @@ TEST_F(TS_ReadUntil, LfBeginningOfStringIgnoreMultipleOccurences_Success)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen - 1, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, LfOnlyCharInString_Success)
+TEST_F(TS_PopUntil, LfOnlyCharInString_Success)
 {
     const char *needle = "\n";
     string totalData = "\n";
@@ -538,7 +720,7 @@ TEST_F(TS_ReadUntil, LfOnlyCharInString_Success)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(totalData);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, NULL);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, NULL);
 
     ASSERT_EQ(RETCODE_OK, rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -547,7 +729,7 @@ TEST_F(TS_ReadUntil, LfOnlyCharInString_Success)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen - 1, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, InsufficentSearchBuffer_Fail)
+TEST_F(TS_PopUntil, InsufficentSearchBuffer_Fail)
 {
     const char *needle = "\n";
     string expData = "+COPS:0,2,3,4";
@@ -556,7 +738,7 @@ TEST_F(TS_ReadUntil, InsufficentSearchBuffer_Fail)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(expData);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, NULL);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, NULL);
 
     ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES), rc);
     ASSERT_EQ(expData.length(), actDataLen);
@@ -565,7 +747,7 @@ TEST_F(TS_ReadUntil, InsufficentSearchBuffer_Fail)
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, OneMsgWithTimeout_Fail)
+TEST_F(TS_PopUntil, OneMsgWithTimeout_Fail)
 {
     TickType_t tickLimit = 1000;
     const char *needle = "\n";
@@ -575,14 +757,14 @@ TEST_F(TS_ReadUntil, OneMsgWithTimeout_Fail)
     memset(actData, 0U, sizeof(actData));
     this->EnqueueMessage(expData, tickLimit * 2);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, &tickLimit);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, &tickLimit);
 
     ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT), rc);
     ASSERT_EQ(0U, actDataLen);
     ASSERT_EQ(this->GetTotalDequeuedByteCount() - actDataLen, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_ReadUntil, TwoMsgWithTimeout_Fail)
+TEST_F(TS_PopUntil, TwoMsgWithTimeout_Fail)
 {
     TickType_t tickLimit = 10;
     const char *needle = "\r";
@@ -596,7 +778,7 @@ TEST_F(TS_ReadUntil, TwoMsgWithTimeout_Fail)
     this->EnqueueMessage(totalData1, tickLimit);
     this->EnqueueMessage(totalData2, 100);
 
-    Retcode_T rc = ReadUntil(&t, actData, &actDataLen, needle, &tickLimit);
+    Retcode_T rc = PopUntil(&t, actData, &actDataLen, needle, &tickLimit);
 
     ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT), rc);
     ASSERT_EQ(totalData1.length(), actDataLen);
@@ -661,7 +843,7 @@ TEST_F(TS_SkipUntil, CrInSecondMessage_Success)
     ASSERT_EQ(RETCODE_OK, rc);
 }
 
-TEST_F(TS_SkipUntil, LfBeginningOfString_Success)
+TEST_F(TS_SkipUntil, LfStartOfString_Success)
 {
     const char *needle = "\n";
     const char *expData = "\n+COPS:0,2,3,4";
@@ -673,7 +855,7 @@ TEST_F(TS_SkipUntil, LfBeginningOfString_Success)
     ASSERT_EQ(RETCODE_OK, rc);
 }
 
-TEST_F(TS_SkipUntil, LfBeginningOfStringIgnoreMultipleOccurences_Success)
+TEST_F(TS_SkipUntil, LfStartOfStringIgnoreMultipleOccurrences_Success)
 {
     const char *needle = "\n";
     const char *expData = "\n+COPS:0,2,3,4\r\n";
@@ -728,37 +910,37 @@ TEST_F(TS_SkipUntil, TwoMsgWithTimeout_Fail)
     ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT), rc);
 }
 
-class TS_SkipAmount : public TS_FakeRx
+class TS_Skip : public TS_FakeRx
 {
 };
 
-TEST_F(TS_SkipAmount, OneMsg_Success)
+TEST_F(TS_Skip, OneMsg_Success)
 {
     const char *expData = "+COPS:0,2,3,4";
     size_t expDataLen = strlen(expData);
     size_t expAmount = expDataLen / 2;
     this->EnqueueMessage(expData, expDataLen);
 
-    Retcode_T rc = SkipAmount(&t, expAmount, NULL);
+    size_t r = Skip(&t, expAmount, NULL);
 
-    EXPECT_EQ(RETCODE_OK, rc);
+    EXPECT_EQ(expAmount, r);
     EXPECT_EQ(expDataLen - expAmount, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_SkipAmount, ZeroBytes_Success)
+TEST_F(TS_Skip, ZeroBytes_Success)
 {
     const char *expData = "+COPS:0,2,3,4";
     size_t expDataLen = strlen(expData);
     size_t expAmount = 0;
     this->EnqueueMessage(expData, expDataLen);
 
-    Retcode_T rc = SkipAmount(&t, expAmount, NULL);
+    size_t r = Skip(&t, expAmount, NULL);
 
-    EXPECT_EQ(RETCODE_OK, rc);
+    EXPECT_EQ(expAmount, r);
     EXPECT_EQ(expDataLen - expAmount, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_SkipAmount, TwoMsg_Success)
+TEST_F(TS_Skip, TwoMsg_Success)
 {
     const char *expData = "+COPS:0,2,3,4\r\n";
     size_t expDataLen = strlen(expData);
@@ -770,25 +952,25 @@ TEST_F(TS_SkipAmount, TwoMsg_Success)
     this->EnqueueMessage(totalData1, expDataLen1);
     this->EnqueueMessage(expData2, expDataLen2);
 
-    Retcode_T rc = SkipAmount(&t, expAmount, NULL);
+    size_t r = Skip(&t, expAmount, NULL);
 
-    EXPECT_EQ(RETCODE_OK, rc);
+    EXPECT_EQ(expAmount, r);
     EXPECT_EQ(expDataLen - expAmount, this->GetFakeRxByteCount());
 }
 
-TEST_F(TS_SkipAmount, OneMsgWithTimeout_Fail)
+TEST_F(TS_Skip, OneMsgWithTimeout_Fail)
 {
     TickType_t tickLimit = 1000;
     const char *expData = "+COPS:0,2,3,4";
     size_t expDataLen = strlen(expData);
     this->EnqueueMessage(expData, expDataLen, tickLimit * 2);
 
-    Retcode_T rc = SkipAmount(&t, expDataLen, &tickLimit);
+    size_t r = Skip(&t, expDataLen, &tickLimit);
 
-    ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT), rc);
+    ASSERT_EQ(0U, r);
 }
 
-TEST_F(TS_SkipAmount, TwoMsgWithTimeout_Fail)
+TEST_F(TS_Skip, TwoMsgWithTimeout_Fail)
 {
     TickType_t tickLimit = 10;
     const char *expData = "+COPS:0,2,3,4\r\n";
@@ -800,9 +982,9 @@ TEST_F(TS_SkipAmount, TwoMsgWithTimeout_Fail)
     this->EnqueueMessage(totalData1, expDataLen1, tickLimit);
     this->EnqueueMessage(expData2, expDataLen2, 100);
 
-    Retcode_T rc = SkipAmount(&t, expDataLen, &tickLimit);
+    size_t r = Skip(&t, expDataLen, &tickLimit);
 
-    ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT), rc);
+    ASSERT_EQ(expDataLen1, r);
 }
 
 class TS_AtTransceiver_ReadCommandAny : public TS_FakeRx

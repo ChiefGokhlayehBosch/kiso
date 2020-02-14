@@ -67,10 +67,11 @@ static inline Retcode_T HexToBin(const char *hex, void *bin, size_t binLength);
 static inline Retcode_T BinToHex(const void *binData, size_t binLength, char *hexData, size_t hexLength);
 static inline size_t FormatI32(int32_t x, int base, char *str, size_t len);
 static inline size_t FormatU32(uint32_t x, int base, char *str, size_t len);
-static size_t Read(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t *timeout);
-static Retcode_T ReadUntil(struct AtTransceiver_S *t, void *buf, size_t *len, const void *until, TickType_t *timeout);
+static size_t Peek(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t *timeout);
+static size_t Pop(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t *timeout);
+static size_t Skip(struct AtTransceiver_S *t, size_t len, TickType_t *timeout);
+static Retcode_T PopUntil(struct AtTransceiver_S *t, void *buf, size_t *len, const void *anyOfThese, TickType_t *timeout);
 static Retcode_T SkipUntil(struct AtTransceiver_S *t, const void *anyOfThese, TickType_t *timeout);
-static Retcode_T SkipAmount(struct AtTransceiver_S *t, size_t nbytes, TickType_t *timeout);
 
 static const struct AtTransceiver_ResponseCode_S ResponseCodes[ATTRANSCEIVER_RESPONSECODE_MAX] = {
     {ATTRANSCEIVER_RESPONSECODE_OK, 0, "OK"},
@@ -205,79 +206,110 @@ static inline size_t FormatU32(uint32_t x, int base, char *str, size_t len)
     }
 }
 
-static size_t Read(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t *timeout)
+static bool WaitForMoreRx(SemaphoreHandle_t wakeupSignal, TickType_t maxTimeout, TickType_t *totalTicksSlept)
+{
+    assert(NULL != t);
+    assert(NULL != totalTicksSlept);
+
+    bool hitTimeout = false;
+    TickType_t remainingTimeout = maxTimeout > *totalTicksSlept ? maxTimeout - *totalTicksSlept : 0;
+
+    if (remainingTimeout <= 0)
+    {
+        /* Requested with no-wait, so we just return with what we have. */
+        hitTimeout = true;
+    }
+    else
+    {
+        TickType_t preWait = xTaskGetTickCount();
+        BaseType_t wokenInTime = xSemaphoreTake(wakeupSignal, remainingTimeout);
+        if (pdTRUE == wokenInTime)
+        {
+            TickType_t ticksSlept = xTaskGetTickCount() - preWait;
+            *totalTicksSlept += ticksSlept;
+            if (*totalTicksSlept > maxTimeout)
+            {
+                hitTimeout = true;
+            }
+        }
+        else
+        {
+            /* Assumption: xSemaphoreTake should only return false if timeout
+             * was exceeded. */
+            hitTimeout = true;
+        }
+    }
+
+    return hitTimeout;
+}
+
+static size_t Peek(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t *timeout)
 {
     TickType_t totalTicksSlept = 0;
-    const TickType_t initialTimeout = timeout != NULL ? *timeout : 0;
+    const TickType_t maxTimeout = timeout != NULL ? *timeout : 0;
     size_t total = 0;
     bool hitTimeout = false;
     while (total < len && !hitTimeout)
     {
-        TickType_t effectiveTimeout = timeout != NULL ? *timeout : 0;
-        size_t bytesRead = (size_t)RingBuffer_Read(&t->RxRingBuffer, (uint8_t *)buf + total, len - total);
-        total += bytesRead;
-        if (initialTimeout <= 0 || effectiveTimeout <= 0)
+        total = (size_t)RingBuffer_Peek(&t->RxRingBuffer, (uint8_t *)buf, len);
+
+        if (total < len)
         {
-            /* Requested with no-wait, so we just return with what we have. */
-            hitTimeout = true;
-        }
-        else if (total < len)
-        {
-            TickType_t preWait = xTaskGetTickCount();
-            BaseType_t wokenInTime = xSemaphoreTake(t->RxWakeupHandle, effectiveTimeout);
-            if (pdTRUE == wokenInTime)
-            {
-                TickType_t ticksSlept = xTaskGetTickCount() - preWait;
-                totalTicksSlept += ticksSlept;
-                if (totalTicksSlept > initialTimeout)
-                {
-                    hitTimeout = true;
-                }
-                assert(*timeout >= ticksSlept);
-                *timeout -= ticksSlept;
-            }
-            else
-            {
-                hitTimeout = true;
-            }
+            hitTimeout = WaitForMoreRx(t->RxWakeupHandle, maxTimeout, &totalTicksSlept);
         }
     }
 
     return total;
 }
 
-static Retcode_T ReadUntil(struct AtTransceiver_S *t, void *buf, size_t *len, const void *anyOfThese, TickType_t *timeout)
+static size_t Pop(struct AtTransceiver_S *t, void *buf, size_t len, TickType_t *timeout)
+{
+    TickType_t totalTicksSlept = 0;
+    const TickType_t maxTimeout = timeout != NULL ? *timeout : 0;
+    size_t total = 0;
+    bool hitTimeout = false;
+    while (total < len && !hitTimeout)
+    {
+        total += (size_t)RingBuffer_Read(&t->RxRingBuffer, (uint8_t *)buf + total, len - total);
+
+        if (total < len)
+        {
+            hitTimeout = WaitForMoreRx(t->RxWakeupHandle, maxTimeout, &totalTicksSlept);
+        }
+    }
+
+    return total;
+}
+
+static size_t Skip(struct AtTransceiver_S *t, size_t len, TickType_t *timeout)
+{
+    TickType_t totalTicksSlept = 0;
+    const TickType_t maxTimeout = timeout != NULL ? *timeout : 0;
+    size_t total = 0;
+    bool hitTimeout = false;
+    char dummy[ATTRANSCEIVER_DUMMYBUFFERSIZE];
+    while (total < len && !hitTimeout)
+    {
+        size_t bytesRead = (size_t)RingBuffer_Read(&t->RxRingBuffer, (uint8_t *)dummy, ATTRANSCEIVER_MIN(sizeof(dummy), len - total));
+        total += bytesRead;
+
+        if (!bytesRead && total < len)
+        {
+            hitTimeout = WaitForMoreRx(t->RxWakeupHandle, maxTimeout, &totalTicksSlept);
+        }
+    }
+
+    return total;
+}
+
+static Retcode_T PopUntil(struct AtTransceiver_S *t, void *buf, size_t *len, const void *anyOfThese, TickType_t *timeout)
 {
     bool matchFound = false;
     size_t i;
     size_t r = 0;
     for (i = 0; i < *len && !matchFound; i += r)
     {
-        /** \todo: Consider implementing peek feature instead of using Read.
-         * This could improve performance when combined with larger dummy
-         * buffers.
-         * The current implementation tries to anticipate a "c" buffer with size
-         * larger than one byte (that's why we use memchr). The problem is
-         * though, without a proper peek function, we may consume too many
-         * bytes from the RingBuffer (beyond the first occurrence of
-         * anyOfThese).
-         *
-         * This may illustrate the issue further:
-         *   ReadUntil(':') with dummy buffer of 4 byte length
-         *   > + C O P S : 1 , 2 , 3 , 4
-         *    ^ - We start of here, at the beginning.
-         *   > _ _ _ _ S : 1 , 2 , 3 , 4
-         *            ^ - We have consumed the first 4 bytes.
-         *   > _ _ _ _ _ _ _ _ 2 , 3 , 4
-         *               X    ^ - Oops we've gone too far! Yes, we did encounter
-         *                        the ':' at X but kept on reading into our
-         *                        dummy buffer.
-         *
-         * We can't simply put these bytes back in the RingBuffer
-         * So we effectively "steal" bytes from subsequent Read calls.
-         */
-        char c;
-        r = Read(t, &c, ATTRANSCEIVER_MIN(sizeof(c), *len - i), timeout);
+        r = Peek(t, buf + i, *len - i, timeout);
         if (!r)
         {
             *len = i;
@@ -286,14 +318,19 @@ static Retcode_T ReadUntil(struct AtTransceiver_S *t, void *buf, size_t *len, co
 
         for (size_t j = 0; ((const char *)anyOfThese)[j] != '\0' && !matchFound; ++j)
         {
-            void *match = memchr(&c, ((const char *)anyOfThese)[j], r);
+            void *match = memchr(buf + i, ((const char *)anyOfThese)[j], r);
             if (match)
             {
                 matchFound = true;
-                r = ((char *)match) - &c;
+                r = ((char *)match) - ((char *)(buf + i));
             }
         }
-        memcpy(((uint8_t *)buf) + i, &c, r);
+
+        /* No need to wait. As the peek succeeded already, we should have all
+         * bytes available already. */
+        size_t r2 = Skip(t, r + (matchFound ? 1 : 0), 0);
+        KISO_UNUSED(r2);
+        assert(r == r2);
     }
     if (matchFound)
     {
@@ -313,25 +350,9 @@ static Retcode_T SkipUntil(struct AtTransceiver_S *t, const void *anyOfThese, Ti
     do
     {
         size_t len = ATTRANSCEIVER_DUMMYBUFFERSIZE;
-        rc = ReadUntil(t, dummy, &len, anyOfThese, timeout);
+        rc = PopUntil(t, dummy, &len, anyOfThese, timeout);
     } while (RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES) == rc);
     return rc;
-}
-
-static Retcode_T SkipAmount(struct AtTransceiver_S *t, size_t nbytes, TickType_t *timeout)
-{
-    uint8_t dummy[ATTRANSCEIVER_DUMMYBUFFERSIZE];
-    size_t r = 0;
-    for (; nbytes > 0; nbytes -= r)
-    {
-        r = Read(t, dummy, ATTRANSCEIVER_DUMMYBUFFERSIZE > nbytes ? nbytes : ATTRANSCEIVER_DUMMYBUFFERSIZE, timeout);
-        if (!r)
-        {
-            return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT);
-        }
-    }
-
-    return RETCODE_OK;
 }
 
 Retcode_T AtTransceiver_Initialize(struct AtTransceiver_S *t,
@@ -353,7 +374,6 @@ Retcode_T AtTransceiver_Initialize(struct AtTransceiver_S *t,
     assert(NULL != t->LockHandle); /* due to static allocation */
 
     t->WriteState = ATTRANSCEIVER_WRITESTATE_START;
-
     return RETCODE_OK;
 }
 
@@ -606,6 +626,7 @@ Retcode_T AtTransceiver_WriteHexString(struct AtTransceiver_S *t, const void *da
 Retcode_T AtTransceiver_Flush(struct AtTransceiver_S *t, TickType_t timeout)
 {
     Retcode_T rc = RETCODE_OK;
+    size_t r = 0;
     if (!(t->WriteOptions & ATTRANSCEIVER_WRITEOPTION_NOFINALS3S4))
     {
         rc = AtTransceiver_Write(t, ATTRANSCEIVER_S3S4, sizeof(ATTRANSCEIVER_S3S4) - 1, ATTRANSCEIVER_WRITESTATE_END);
@@ -622,16 +643,19 @@ Retcode_T AtTransceiver_Flush(struct AtTransceiver_S *t, TickType_t timeout)
              * over the course of this write sequence. Our only option is to
              * skip the expected number of bytes from the echo response, so the
              * read sequence can proceed. */
-            rc = SkipAmount(t, t->TxBufferUsed, &timeout);
+            r = Skip(t, t->TxBufferUsed, &timeout);
+            if (!r)
+            {
+                rc = RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT);
+            }
         }
         else
         {
             char dummy[ATTRANSCEIVER_DUMMYBUFFERSIZE];
-            size_t r = 0;
             size_t totalRead = 0;
             do
             {
-                r = Read(t, dummy, ATTRANSCEIVER_MIN(t->TxBufferUsed - totalRead, sizeof(dummy)), &timeout);
+                r = Pop(t, dummy, ATTRANSCEIVER_MIN(t->TxBufferUsed - totalRead, sizeof(dummy)), &timeout);
                 if (!r)
                 {
                     rc = RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT);
@@ -656,7 +680,15 @@ Retcode_T AtTransceiver_Flush(struct AtTransceiver_S *t, TickType_t timeout)
 
 Retcode_T AtTransceiver_SkipBytes(struct AtTransceiver_S *t, size_t length, TickType_t timeout)
 {
-    return SkipAmount(t, length, &timeout);
+    size_t r = Skip(t, length, &timeout);
+    if (r < length)
+    {
+        return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT);
+    }
+    else
+    {
+        return RETCODE_OK;
+    }
 }
 
 Retcode_T AtTransceiver_SkipArgument(struct AtTransceiver_S *t, TickType_t timeout)
@@ -673,15 +705,15 @@ Retcode_T AtTransceiver_ReadCommandAny(struct AtTransceiver_S *t, char *str, siz
     if (RETCODE_OK != rc)
         return rc;
     /* <S3><S4>+|<command>:<attribute_list><S3><S4>
-     *          ^ We should now be here.
+     *          ^ We should be here now.
      */
 
     size_t r = length;
-    rc = ReadUntil(t, str, &r, ATTRANSCEIVER_ARGLIST, &timeout);
+    rc = PopUntil(t, str, &r, ATTRANSCEIVER_ARGLIST, &timeout);
     if (RETCODE_OK == rc)
     {
         /* <S3><S4>+<command>:|<attribute_list><S3><S4>
-         *                    ^ We should now be here.
+         *                    ^ We should be here now.
          */
         if (r >= length)
         {
@@ -703,7 +735,7 @@ Retcode_T AtTransceiver_ReadCommandAny(struct AtTransceiver_S *t, char *str, siz
         if (RETCODE_OK == rc)
         {
             /* <S3><S4>+<command>:|<attribute_list><S3><S4>
-             *                    ^ We should now be here
+             *                    ^ We should be here now
              */
             rc = RETCODE(RETCODE_SEVERITY_WARNING, RETCODE_OUT_OF_RESOURCES);
         }
@@ -721,7 +753,7 @@ Retcode_T AtTransceiver_ReadCommand(struct AtTransceiver_S *t, const char *str, 
     if (RETCODE_OK != rc)
         return rc;
     /* <S3><S4>+|<command>:<attribute_list><S3><S4>
-     *          ^ We should now be here.
+     *          ^ We should be here now.
      */
 
     size_t len = strlen(str);
@@ -730,7 +762,7 @@ Retcode_T AtTransceiver_ReadCommand(struct AtTransceiver_S *t, const char *str, 
     for (i = 0; i < len; i += r)
     {
         char dummy[ATTRANSCEIVER_DUMMYBUFFERSIZE];
-        r = Read(t, dummy, ATTRANSCEIVER_MIN(sizeof(dummy), len - i), &timeout);
+        r = Pop(t, dummy, ATTRANSCEIVER_MIN(sizeof(dummy), len - i), &timeout);
         if (r)
         {
             for (size_t j = 0; j < r; ++j)
@@ -745,7 +777,7 @@ Retcode_T AtTransceiver_ReadCommand(struct AtTransceiver_S *t, const char *str, 
         }
     }
     /* <S3><S4>+<command>|:<attribute_list><S3><S4>
-     *                   ^ We should now be here.
+     *                   ^ We should be here now.
      * Meaning we still have to clean up the ':' before we leave.
      */
 
@@ -757,7 +789,7 @@ Retcode_T AtTransceiver_ReadCommand(struct AtTransceiver_S *t, const char *str, 
 
 Retcode_T AtTransceiver_Read(struct AtTransceiver_S *t, void *data, size_t length, size_t *numActualBytesRead, TickType_t timeout)
 {
-    size_t r = Read(t, data, length, &timeout);
+    size_t r = Pop(t, data, length, &timeout);
     if (numActualBytesRead != NULL)
         *numActualBytesRead = r;
     if (r != length)
@@ -769,13 +801,13 @@ Retcode_T AtTransceiver_Read(struct AtTransceiver_S *t, void *data, size_t lengt
 Retcode_T AtTransceiver_ReadString(struct AtTransceiver_S *t, char *str, size_t limit, TickType_t timeout)
 {
     char c = 0;
-    size_t r = Read(t, &c, sizeof(c), &timeout);
+    size_t r = Pop(t, &c, sizeof(c), &timeout);
     if (!r)
         return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT);
     if ('"' != c)
         return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_INCONSISTENT_STATE);
 
-    Retcode_T rc = ReadUntil(t, str, &limit, "\"", &timeout);
+    Retcode_T rc = PopUntil(t, str, &limit, "\"", &timeout);
     if (RETCODE_OK == rc)
     {
         str[limit] = '\0';
@@ -787,7 +819,7 @@ Retcode_T AtTransceiver_ReadString(struct AtTransceiver_S *t, char *str, size_t 
 Retcode_T AtTransceiver_ReadHexString(struct AtTransceiver_S *t, void *data, size_t limit, size_t *numActualBytesRead, TickType_t timeout)
 {
     char c = 0;
-    size_t r = Read(t, &c, sizeof(c), &timeout);
+    size_t r = Pop(t, &c, sizeof(c), &timeout);
     if (!r)
         return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_TIMEOUT);
     if ('"' != c)
@@ -798,7 +830,7 @@ Retcode_T AtTransceiver_ReadHexString(struct AtTransceiver_S *t, void *data, siz
     for (size_t i = 0; i < limit && RETCODE_OK == rc; i += r / 2, numActualBytesRead != NULL ? (*numActualBytesRead) += r / 2 : 0)
     {
         r = sizeof(dummy);
-        rc = ReadUntil(t, ((uint8_t *)dummy), &r, "\"", &timeout);
+        rc = PopUntil(t, ((uint8_t *)dummy), &r, "\"", &timeout);
         if (RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_OUT_OF_RESOURCES) == rc)
         {
             rc = RETCODE_OK; /* don't worry, we expected data to be too small to hold the full hex string. */
@@ -852,7 +884,7 @@ Retcode_T AtTransceiver_ReadI32(struct AtTransceiver_S *t, int32_t *x, int base,
 {
     char buf[sizeof(ATTRANSCEIVER_TOSTRING(INT32_MAX)) + 1];
     size_t len = sizeof(buf) - 1;
-    Retcode_T rc = ReadUntil(t, buf, &len, ATTRANSCEIVER_CONCAT(ATTRANSCEIVER_ARGSEPARATOR, ATTRANSCEIVER_S4), &timeout);
+    Retcode_T rc = PopUntil(t, buf, &len, ATTRANSCEIVER_CONCAT(ATTRANSCEIVER_ARGSEPARATOR, ATTRANSCEIVER_S4), &timeout);
     if (RETCODE_OK != rc)
     {
         return rc;
@@ -876,7 +908,7 @@ Retcode_T AtTransceiver_ReadU32(struct AtTransceiver_S *t, uint32_t *x, int base
 {
     char buf[sizeof(ATTRANSCEIVER_TOSTRING(INT32_MAX)) + 1];
     size_t len = sizeof(buf) - 1;
-    Retcode_T rc = ReadUntil(t, buf, &len, ATTRANSCEIVER_CONCAT(ATTRANSCEIVER_ARGSEPARATOR, ATTRANSCEIVER_S4), &timeout);
+    Retcode_T rc = PopUntil(t, buf, &len, ATTRANSCEIVER_CONCAT(ATTRANSCEIVER_ARGSEPARATOR, ATTRANSCEIVER_S4), &timeout);
     if (RETCODE_OK != rc)
     {
         return rc;
@@ -920,11 +952,11 @@ Retcode_T AtTransceiver_ReadCode(struct AtTransceiver_S *t, enum AtTransceiver_R
     for (unsigned int i = 0; i < ATTRANSCEIVER_SKIPEMPTYLINESLIMIT && RETCODE_OK == rc; ++i)
     {
         len = sizeof(dummy);
-        rc = ReadUntil(t, dummy, &len, ATTRANSCEIVER_S3, &timeout);
+        rc = PopUntil(t, dummy, &len, ATTRANSCEIVER_S3, &timeout);
         if (len <= 0U)
         {
             /* We assume the next character is S4. Skip it! */
-            (void)SkipAmount(t, 1U, &timeout);
+            (void)Skip(t, 1U, &timeout);
         }
         else
         {
