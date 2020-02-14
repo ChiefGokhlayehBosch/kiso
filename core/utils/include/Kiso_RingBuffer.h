@@ -22,7 +22,7 @@
  *      Ring Buffer Interface provides APIs for the creation and handling of a RingBuffer object.
  *
  * @details
- *      This API  provides means for creating and handling 8 bit ring buffer objects 
+ *      This API  provides means for creating and handling 8 bit ring buffer objects
  *      typically used in communication stacks.
  *      an example of usage is explained in the code snippet below.
  *
@@ -35,17 +35,17 @@
    uint8_t yourBuffer[yourBufferSize];
 
    void yourInitFunction(void)
-   {  
+   {
      ....
       RingBuffer_Initialize(&ringBuffer, yourBuffer, yourBufferSize);
       ...
     }
-  
+
    void yourFunctionReadingTheRingBuffer(void)
    {
       uint8_t readBuffer[SIZE];
       ...
-      // it makes sense to protect the read operation with a critical section 
+      // it makes sense to protect the read operation with a critical section
       length = RingBuffer_Read(&ringBuffer, readBuffer, SIZE);
       ...
   return;
@@ -59,7 +59,7 @@
     ...
     return;
   }
- 
+
   @endcode
  * @file
  **/
@@ -151,7 +151,8 @@ uint32_t RingBuffer_Write(RingBuffer_T *ringBuffer, const uint8_t *data, uint32_
  *      Removes the specified number of bytes from the circular buffer and stores
  *      them in the user supplied buffer.
  *
- *  @note The number of bytes may be different depending on the actual fill-level of the buffer.
+ *  @note The number of bytes read may be different depending on the actual
+ *        fill-level of the buffer.
  *
  *  @param [ in ] ringBuffer
  *      Pointer to the ring-buffer descriptor
@@ -170,6 +171,32 @@ uint32_t RingBuffer_Write(RingBuffer_T *ringBuffer, const uint8_t *data, uint32_
  *
  */
 uint32_t RingBuffer_Read(RingBuffer_T *ringBuffer, uint8_t *data, uint32_t length);
+
+/**
+ *  @brief
+ *      Reads the specified number of bytes from the circular buffer without
+ *      removing them into a user supplied buffer.
+ *
+ *  @note The number of bytes read may be different depending on the actual
+ *        fill-level of the buffer.
+ *
+ *  @param [ in ] ringBuffer
+ *      Pointer to the ring-buffer descriptor
+ *      MUST NOT be NULL
+ *
+ *  @param [ out ] data
+ *      Pointer to the user supplied buffer into which the data has to be copied.
+ *      Must be large enough to hold the specific number of bytes
+ *      MUST NOT be NULL
+ *
+ *  @param [ in ] length
+ *      The number of bytes to copy
+ *
+ *  @return
+ *      Actual number of bytes read
+ *
+ */
+uint32_t RingBuffer_Peek(RingBuffer_T *ringBuffer, uint8_t *data, uint32_t length);
 
 /**
  *  @brief

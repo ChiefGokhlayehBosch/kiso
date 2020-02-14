@@ -139,6 +139,24 @@ uint32_t RingBuffer_Read(RingBuffer_T *ringBuffer, uint8_t *data, uint32_t lengt
 }
 
 /*  The description of the function is available in Kiso_RingBuffer.h */
+uint32_t RingBuffer_Peek(RingBuffer_T *ringBuffer, uint8_t *data, uint32_t length)
+{
+    uint32_t actualLength = 0UL;
+    if ((NULL != ringBuffer) && (NULL != data))
+    {
+        RingBuffer_T ringBufferCopy;
+        memcpy(&ringBufferCopy, ringBuffer, sizeof(RingBuffer_T));
+        /* Read data while the buffer is not empty for the amount of requested data */
+        while (!RingBuffer_IsEmpty(&ringBufferCopy) && length--)
+        {
+            data[actualLength++] = Get(&ringBufferCopy);
+        }
+    }
+    /* Report the number of bytes read */
+    return actualLength;
+}
+
+/*  The description of the function is available in Kiso_RingBuffer.h */
 void RingBuffer_Reset(RingBuffer_T *ringBuffer)
 {
     if (NULL != ringBuffer)
