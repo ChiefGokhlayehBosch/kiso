@@ -148,11 +148,7 @@ static void ListenForUrcDuringIdle(void)
     }
     LOG_DEBUG("Handling URCs while idleing."); //LCOV_EXCL_BR_LINE
 
-    rc = Urc_HandleResponses();
-    if (RETCODE_OK != rc)
-    {
-        Retcode_RaiseError(rc);
-    }
+    Urc_HandleResponses(&Transceiver);
 
     rc = AtTransceiver_Unlock(&Transceiver);
     if (RETCODE_OK != rc)

@@ -1,5 +1,5 @@
-/**********************************************************************************************************************
- * Copyright (c) 2010-2019 Robert Bosch GmbH
+/*******************************************************************************
+ * Copyright (c) 2010-2020 Robert Bosch GmbH
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License 2.0 which is available at
@@ -8,25 +8,21 @@
  * SPDX-License-Identifier: EPL-2.0
  *
  * Contributors:
+ *    Robert Bosch GmbH - transceiver based AT command parsing
  *    Robert Bosch GmbH - initial contribution
  *
- **********************************************************************************************************************/
-
-/**
- * @file
- *
- * @brief Implements various URC handling routines.
- */
-
-/*###################### INCLUDED HEADERS ############################################################################*/
+ ******************************************************************************/
 
 #include "Kiso_CellularModules.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_URC
 
-#include "AtUrc.h"
+#include "Kiso_CellularConfig.h"
 
-#include "Kiso_Cellular.h"
-#include "AtResponseQueue.h"
+#ifdef CELLULAR_VARIANT_UBLOX
+
+#include "Urc.h"
+
+#include "AtTransceiver.h"
 #include "At3Gpp27007.h"
 #include "AtUBlox.h"
 
@@ -35,135 +31,70 @@
 #include "Kiso_Assert.h"
 
 #include "Kiso_Logging.h"
-/*###################### MACROS DEFINITION ###########################################################################*/
-/**
- * @brief       The maximum number of subsequent URC handler chain executions. If this number
- *              is too low, some URCs might not be handled. If it's too high we waste time
- *              doing nothing. When in dought, err on the side of making this number too high.
- */
-#define CELLULAR_MAX_URC_HANDLER_RUNS UINT8_C(1)
 
-/**
- * @brief       The maximum time to wait for the URC argument to be received.
- */
-#define CELLULAR_URC_ARG_WAIT_TIME (UINT32_C(100) / portTICK_PERIOD_MS) //todo implicit dependency to freertos here
+#include "FreeRTOS.h"
+#include "portmacro.h"
 
-/*###################### LOCAL FUNCTIONS DECLARATION #################################################################*/
+#define URC_CMD_BUFFER_SIZE (8U)
 
-static Retcode_T HandleMiscellaneousUrc(void);
+#define URC_SHORT_TIMEOUT (pdMS_TO_TICKS(100))
 
-/*###################### VARIABLES DECLARATION #######################################################################*/
+#define URC_SCAN_LIMIT (2U)
 
-/*###################### EXPOSED FUNCTIONS IMPLEMENTATION ############################################################*/
+#define URC_MIN(a, b) ((a) < (b) ? (a) : (b))
 
-Retcode_T Urc_HandleResponses(void)
+void Urc_HandleResponses(struct AtTransceiver_S *t)
 {
-    Retcode_T retcode;
-    bool OneHandlerCared = false;
+    Retcode_T rc = RETCODE_OK;
+    char cmd[URC_CMD_BUFFER_SIZE];
+    size_t cmdLen = 0;
+    unsigned int scanCount = 0;
 
-    for (uint8_t i = 0; (i < CELLULAR_MAX_URC_HANDLER_RUNS); i++)
+    do
     {
-        retcode = HandleMiscellaneousUrc();
-        if (RETCODE_OK == retcode)
+        rc = AtTransceiver_ReadCommandAny(t, cmd, &cmdLen, URC_SHORT_TIMEOUT);
+        if (RETCODE_TIMEOUT == Retcode_GetCode(rc) && cmdLen > 0U)
         {
-            OneHandlerCared = true;
+            LOG_ERROR("Timeout during unfinished URC cmd: %.*s", cmdLen, cmd);
+            Retcode_RaiseError(rc);
+        }
+        else if (RETCODE_OK != rc)
+        {
+            LOG_ERROR("Miscellaneous error while reading URC cmd: 0x%08x, %.*s", rc, cmdLen, cmd);
+            Retcode_RaiseError(rc);
         }
 
-        retcode = At_HandleUrc_CGREG();
-        if (RETCODE_OK == retcode)
+        if (RETCODE_OK == rc)
         {
-            OneHandlerCared = true;
+            if (0U == strncmp(cmd, AT3GPP27007_URC_CREG, URC_MIN(cmdLen, URC_CMD_BUFFER_SIZE)))
+            {
+                At3Gpp27007_CREG_Resp_T resp;
+                rc = At3Gpp27007_UrcCREG(t, &resp);
+                if (RETCODE_OK == rc)
+                {
+                    /** @todo Implement */
+                }
+            }
+            else if (0U == strncmp(cmd, AT3GPP27007_URC_CGREG, URC_MIN(cmdLen, URC_CMD_BUFFER_SIZE)))
+            {
+                At3Gpp27007_CGREG_Resp_T resp;
+                rc = At3Gpp27007_UrcCGREG(t, &resp);
+                if (RETCODE_OK == rc)
+                {
+                    /** @todo Implement */
+                }
+            }
+            else if (0U == strncmp(cmd, AT3GPP27007_URC_CEREG, URC_MIN(cmdLen, URC_CMD_BUFFER_SIZE)))
+            {
+                At3Gpp27007_CEREG_Resp_T resp;
+                rc = At3Gpp27007_UrcCEREG(t, &resp);
+                if (RETCODE_OK == rc)
+                {
+                    /** @todo Implement */
+                }
+            }
         }
-
-        retcode = At_HandleUrc_CEREG();
-        if (RETCODE_OK == retcode)
-        {
-            OneHandlerCared = true;
-        }
-
-        retcode = At_HandleUrc_UUSOCL();
-        if (RETCODE_OK == retcode)
-        {
-            OneHandlerCared = true;
-        }
-
-        retcode = At_HandleUrc_UUSOLI();
-        if (RETCODE_OK == retcode)
-        {
-            OneHandlerCared = true;
-        }
-
-        retcode = At_HandleUrc_UUSORD();
-        if (RETCODE_OK == retcode)
-        {
-            OneHandlerCared = true;
-        }
-
-        retcode = At_HandleUrc_UUSORF();
-        if (RETCODE_OK == retcode)
-        {
-            OneHandlerCared = true;
-        }
-
-        retcode = At_HandleUrc_UUHTTPCR();
-        if (RETCODE_OK == retcode)
-        {
-            OneHandlerCared = true;
-        }
-
-        if (OneHandlerCared)
-        {
-            retcode = RETCODE_OK;
-            continue;
-        }
-        else
-        {
-            retcode = RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_CELLULAR_URC_NOT_PRESENT);
-            break;
-        }
-    }
-    return retcode;
+    } while (RETCODE_TIMEOUT != Retcode_GetCode(rc) && ++scanCount < URC_SCAN_LIMIT);
 }
 
-/*###################### LOCAL FUNCTIONS IMPLEMENTATION ##############################################################*/
-
-/**
- * @brief       Handle u-blox variant specific URCs that do not need proper interpretation. URCs will mostly just be 
- *              thrown out of the queue.
- *
- * @return      A #Retcode_T following the URC-handler chaining scheme described in #CallHandler.
- */
-static Retcode_T HandleMiscellaneousUrc(void)
-{
-    Retcode_T result = RETCODE(RETCODE_SEVERITY_INFO, RETCODE_CELLULAR_URC_NOT_PRESENT);
-    Retcode_T retcode;
-
-    retcode = AtResponseQueue_WaitForNamedCmd(0, (const uint8_t *)"PACSP0", strlen("PACSP0"));
-    if (RETCODE_OK == retcode)
-    {
-        LOG_DEBUG("URC for PACSP0"); //LCOV_EXCL_BR_LINE
-        result = RETCODE_OK;
-    }
-
-    retcode = AtResponseQueue_WaitForNamedCmd(0, (const uint8_t *)"PACSP1", strlen("PACSP1"));
-    if (RETCODE_OK == retcode)
-    {
-        LOG_DEBUG("URC for PACSP1"); //LCOV_EXCL_BR_LINE
-        result = RETCODE_OK;
-    }
-
-    retcode = AtResponseQueue_WaitForNamedCmd(0, (const uint8_t *)"UMWI", strlen("UMWI"));
-    if (RETCODE_OK == retcode)
-    {
-        LOG_DEBUG("URC for UMWI"); //LCOV_EXCL_BR_LINE
-        result = RETCODE_OK;
-
-        // ignore arg 0
-        (void)AtResponseQueue_IgnoreEvent(0);
-
-        // ignore arg 1
-        (void)AtResponseQueue_IgnoreEvent(0);
-    }
-
-    return result;
-}
+#endif

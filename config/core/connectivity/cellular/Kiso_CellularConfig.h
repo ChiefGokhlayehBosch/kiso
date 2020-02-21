@@ -18,6 +18,8 @@
 /* *** HARDWARE AND BSP ***************************************************** */
 #include "Kiso_BSP_Cellular_SaraR4N4.h"
 
+#define CELLULAR_VARIANT_UBLOX
+
 #define CELLULAR_BSP_CONNECT() BSP_Cellular_SaraR4N4_Connect()
 #define CELLULAR_BSP_ENABLE() BSP_Cellular_SaraR4N4_Enable()
 #define CELLULAR_BSP_DISABLE() BSP_Cellular_SaraR4N4_Disable()
