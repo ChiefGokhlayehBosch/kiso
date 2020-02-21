@@ -1,5 +1,5 @@
 /********************************************************************************
-* Copyright (c) 2010-2019 Robert Bosch GmbH
+* Copyright (c) 2010-2020 Robert Bosch GmbH
 *
 * This program and the accompanying materials are made available under the
 * terms of the Eclipse Public License 2.0 which is available at
@@ -24,7 +24,7 @@
 #include "Kiso_CellularModules.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_AT_UBLOX
 
-#include "AT_UBlox.h"
+#include "AtUBlox.h"
 #include "AtResponseQueue.h"
 #include "AtUtils.h"
 #include "Engine.h"

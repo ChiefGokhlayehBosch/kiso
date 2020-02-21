@@ -15,7 +15,7 @@
 #ifndef AT_UBLOX_TH_HH_
 #define AT_UBLOX_TH_HH_
 
-#include "AT_UBlox.h"
+#include "AtUBlox.h"
 
 #include "gtest.h"
 

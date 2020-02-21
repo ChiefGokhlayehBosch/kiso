@@ -19,7 +19,7 @@ extern "C"
 #include "Kiso_CellularModules.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_UBLOXUTILS
 
-#include "AT_UBlox_th.hh"
+#include "AtUBlox_th.hh"
 #include "Kiso_Retcode_th.hh"
 
 #undef KISO_MODULE_ID

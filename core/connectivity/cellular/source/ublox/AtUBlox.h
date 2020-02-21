@@ -1,5 +1,5 @@
 /********************************************************************************
-* Copyright (c) 2010-2019 Robert Bosch GmbH
+* Copyright (c) 2010-2020 Robert Bosch GmbH
 *
 * This program and the accompanying materials are made available under the
 * terms of the Eclipse Public License 2.0 which is available at
@@ -19,8 +19,8 @@
  * details.
  *
  */
-#ifndef AT_UBLOX_H_
-#define AT_UBLOX_H_
+#ifndef ATUBLOX_H_
+#define ATUBLOX_H_
 
 #include "Kiso_Basics.h"
 #include "Kiso_Retcode.h"
@@ -1073,4 +1073,4 @@ Retcode_T At_HandleUrc_UUSOCL(void);
 
 Retcode_T At_HandleUrc_UUHTTPCR(void);
 
-#endif /* AT_UBLOX_H_ */
+#endif /* ATUBLOX_H_ */
