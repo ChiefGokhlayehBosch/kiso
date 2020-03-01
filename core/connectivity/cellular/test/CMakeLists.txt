@@ -13,6 +13,7 @@ file(GLOB TEST_CODE
    unit/source/*_unittest.cc
    unit/source/common/*_unittest.cc
    unit/source/ublox/*_unittest.cc
+   unit/source/quectel/*_unittest.cc
 )
 
 list(FILTER TEST_CODE EXCLUDE REGEX ".*/AT_UBlox_unittest.cc$")
@@ -31,10 +32,12 @@ include_directories(
    ../source/common
    ../source/protected
    ../source/ublox
+   ../source/quectel
    unit/source
    unit/source/common
    unit/source/protected
    unit/source/ublox
+   unit/source/quectel
 )
 link_libraries(cellular_test_int gtest ${KISO_OS_LIB}_test_int essentials_test_int utils_test_int)
 foreach(lib ${KISO_BOARD_LIBS})
