@@ -14,8 +14,11 @@
 
 /*###################### INCLUDED HEADERS ---------------------------------------------------------------------------*/
 
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_SOCKET_SERVICE
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 #include "SocketService.h"
 #include "UBloxUtils.h"
@@ -419,11 +422,11 @@ void SocketService_NotifySocketDataReceived(uint32_t socketId, uint32_t length)
 /**
  * @brief           Creates and binds a new socket.
  *
- * @details         This function is preparing an internal socket context which is bound to a given address and can 
+ * @details         This function is preparing an internal socket context which is bound to a given address and can
  *                  later be used in the @e listen() or @e connect() API. (To be encapsulated by via #Engine_Dispatch()).
  *
  * @param[in,out]   param A valid pointer to a #CellularSocket_CreateAndBindParam_S structure that contains the details
- *                  needed to create and bind the socket. On completion the @e CreatedHandle field will contain the 
+ *                  needed to create and bind the socket. On completion the @e CreatedHandle field will contain the
  *                  newly created socket handle.
  *
  * @param           len Length of #CellularSocket_CreateAndBindParam_S structure.
@@ -492,10 +495,10 @@ static Retcode_T CreateAndBind(void *param, uint32_t len)
 
 /**
  * @brief           Connects a created socket via the modem-internal TCP/IP stack.
- * @details         This function will translate the internal socket context and allocate the socket resources on the 
+ * @details         This function will translate the internal socket context and allocate the socket resources on the
  *                  modem-internal TCP/IP stack. (To be encapsulated by via #Engine_Dispatch()).
  *
- * @param[in]       param A valid pointer to a #CellularSocket_ConnectParam_S structure that contains details needed to 
+ * @param[in]       param A valid pointer to a #CellularSocket_ConnectParam_S structure that contains details needed to
  *                  connect the socket to a remote host.
  *
  * @param[in]       len Length of #CellularSocket_ConnectParam_S structure.
@@ -526,10 +529,10 @@ static Retcode_T Connect(void *param, uint32_t len)
 }
 
 /**
- * @brief           Sets the given socket into listening mode. 
- * @details         Incoming connections will automatically be accepted and forwarded onto a new socket published via 
- *                  the connection-accepted callback. This function will translate the internal socket context and 
- *                  allocate the socket resources on the modem-internal TCP/IP stack. To be encapsulated by via 
+ * @brief           Sets the given socket into listening mode.
+ * @details         Incoming connections will automatically be accepted and forwarded onto a new socket published via
+ *                  the connection-accepted callback. This function will translate the internal socket context and
+ *                  allocate the socket resources on the modem-internal TCP/IP stack. To be encapsulated by via
  *                  #Engine_Dispatch().
  *
  * @param[in]       param A valid pointer to a #CellularSocket_ListenParam_S structure.
@@ -595,7 +598,7 @@ static Retcode_T Send(void *param, uint32_t len)
 }
 
 /**
- * @brief           Send data over a UDP socket using the modem-internal TCP/IP stack. To be encapsulated 
+ * @brief           Send data over a UDP socket using the modem-internal TCP/IP stack. To be encapsulated
  *                  via #Engine_Dispatch().
  *
  * @note            Can only be used for UDP sockets!
@@ -671,7 +674,7 @@ static Retcode_T Receive(void *param, uint32_t len)
     return retcode;
 }
 
-/** 
+/**
  * @brief           Receive data from a UDP socket on the modem-internal TCP/IP stack.
  *
  *                  (To be encapsulated by via #Engine_Dispatch()).
@@ -839,3 +842,5 @@ static inline Retcode_T CelToUbloxProt(CellularSocket_Protocol_T from, AT_USOCR_
         return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_UNEXPECTED_BEHAVIOR);
     }
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

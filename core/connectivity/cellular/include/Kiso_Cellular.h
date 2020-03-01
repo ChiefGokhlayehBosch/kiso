@@ -69,15 +69,6 @@
  *
  * @enduml
  *
- * @defgroup KISO_CELLULAR_VARIANTS Variants
- * @{
- * @brief Supported variants implementing the Cellular API
- *
- * @defgroup KISO_CELLULAR_VARIANT_UBLOX u-blox
- * @{
- * @brief Variant implementation for u-blox
- * @}
- * @}
  * @defgroup KISO_CELLULAR_COMMON Common
  * @{
  * @brief Common modules shared accross variants and acting as the drivers

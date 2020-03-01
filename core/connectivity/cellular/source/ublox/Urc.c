@@ -13,11 +13,10 @@
  *
  ******************************************************************************/
 
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_URC
 
 #include "Kiso_CellularConfig.h"
-
 #ifdef CELLULAR_VARIANT_UBLOX
 
 #include "Urc.h"
@@ -97,4 +96,4 @@ void Urc_HandleResponses(struct AtTransceiver_S *t)
     } while (RETCODE_TIMEOUT != Retcode_GetCode(rc) && ++scanCount < URC_SCAN_LIMIT);
 }
 
-#endif
+#endif /* CELLULAR_VARIANT_UBLOX */

@@ -16,7 +16,7 @@
 
 extern "C"
 {
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_UBLOXUTILS
 
 #include "AtUBlox_th.hh"
@@ -27,6 +27,9 @@ extern "C"
 
 #include <time.h>
 }
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 class TS_Smoke : public testing::Test
 {
@@ -172,3 +175,5 @@ TEST_F(TS_UbloxToCelAddr, InvalidIpTypeFail)
     ASSERT_EQ(RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_UNEXPECTED_BEHAVIOR), rc);
     ASSERT_EQ(CELLULAR_IPADDRESSTYPE_MAX, toAddr.Type);
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

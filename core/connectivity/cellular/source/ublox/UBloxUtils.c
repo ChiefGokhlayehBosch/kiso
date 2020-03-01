@@ -12,8 +12,11 @@
 *
 ********************************************************************************/
 
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_UBLOXUTILS
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 #include "UBloxUtils.h"
 #include "Kiso_Cellular.h"
@@ -57,3 +60,5 @@ Retcode_T UbloxToCelAddr(const AT_UBlox_Address_T *from, Cellular_IpAddress_T *t
         return RETCODE(RETCODE_SEVERITY_ERROR, RETCODE_UNEXPECTED_BEHAVIOR);
     }
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

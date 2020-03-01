@@ -12,8 +12,11 @@
 *
 ********************************************************************************/
 
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_POWER
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 #include "Power.h"
 #include "Kiso_Cellular.h"
@@ -468,3 +471,5 @@ Retcode_T Cellular_IsPoweredOn(bool *isPoweredOn)
         return Engine_Dispatch(CheckCellular, CELLULAR_POWER_SHORT_ENQUEUE_TIMEOUT, isPoweredOn, sizeof(isPoweredOn)); //LCOV_EXL_BR_LINE
     }
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

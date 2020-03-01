@@ -20,9 +20,8 @@ extern "C"
 {
 
 /* setup compile time configuration defines */
-#include "Kiso_Cellular.h"
-#undef KISO_MODULE_ID
-#define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_AT_UBLOX
+#include "UBlox.h"
+#define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_ATUBLOX
 #define GTEST
 /* include faked interfaces */
 #include "Kiso_MCU_UART_th.hh"

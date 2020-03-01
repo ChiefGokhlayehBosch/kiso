@@ -19,6 +19,7 @@
 #include "Kiso_BSP_Cellular_SaraR4N4.h"
 
 #define CELLULAR_VARIANT_UBLOX
+//#define CELLULAR_VARIANT_QUECTEL
 
 #define CELLULAR_BSP_CONNECT() BSP_Cellular_SaraR4N4_Connect()
 #define CELLULAR_BSP_ENABLE() BSP_Cellular_SaraR4N4_Enable()

@@ -18,9 +18,12 @@
  * @brief       Provides functionality for the modem interaction with the network
  */
 /*###################### INCLUDED HEADERS ---------------------------------------------------------------------------*/
-#include "Kiso_CellularModules.h"
-#undef KISO_MODULE_ID
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_NETWORK
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
+
 #include "Kiso_Cellular.h"
 
 #include "Kiso_CellularConfig.h"
@@ -624,3 +627,5 @@ static Retcode_T DeregisterFromNetwork(void *param, uint32_t len)
 
     return retcode;
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

@@ -24,6 +24,7 @@ if(${CMAKE_CROSSCOMPILING})
    file(GLOB CELLULAR_SOURCES
       source/common/*.c
       source/ublox/*.c
+      source/quectel/*.c
    )
    add_library(cellular STATIC EXCLUDE_FROM_ALL ${CELLULAR_SOURCES})
    target_include_directories(cellular
@@ -31,7 +32,6 @@ if(${CMAKE_CROSSCOMPILING})
       include
    PRIVATE
       source/protected
-      source/ublox
    )
    target_link_libraries(cellular cellular_int essentials utils ${KISO_OS_LIB})
 

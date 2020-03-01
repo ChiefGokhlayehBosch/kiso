@@ -12,8 +12,11 @@
 *
 ********************************************************************************/
 
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_DNS_SERVICE
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 #include "Kiso_CellularDnsService.h"
 #include "Kiso_Cellular.h"
@@ -92,3 +95,5 @@ Retcode_T CellularDns_ResolveDomain(
         return Engine_Dispatch(ResolveDomain, CELLULAR_DNS_SHORT_ENQUEUE_TIMEOUT, &param, sizeof(param)); //LCOV_EXCL_BR_LINE
     }
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

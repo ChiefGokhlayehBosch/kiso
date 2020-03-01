@@ -21,8 +21,11 @@
 
 /*###################### INCLUDED HEADERS ###########################################################################*/
 
-#include "Kiso_CellularModules.h"
-#define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_AT_UBLOX
+#include "UBlox.h"
+#define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_ATUBLOX
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 #include "AtUBlox.h"
 #include "AtResponseQueue.h"
@@ -2613,3 +2616,5 @@ static Retcode_T HandleUrcUUSORX(const char *cmd)
 
     return Utils_ConvertAtResponseRetcodeToCellularRetcode(retcode);
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

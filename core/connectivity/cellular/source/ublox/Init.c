@@ -12,8 +12,11 @@
 *
 ********************************************************************************/
 
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_INIT
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 #include "Kiso_Cellular.h"
 
@@ -32,3 +35,5 @@ Retcode_T Cellular_Deinitialize(void)
     Engine_Deinitialize();
     return RETCODE_OK;
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

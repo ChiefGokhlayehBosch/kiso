@@ -12,8 +12,11 @@
 *
 ********************************************************************************/
 
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_HTTP_SERVICE
+
+#include "Kiso_CellularConfig.h"
+#ifdef CELLULAR_VARIANT_UBLOX
 
 #include "Kiso_CellularHttpService.h"
 #include "Kiso_Cellular.h"
@@ -361,3 +364,5 @@ static Retcode_T HttpService_WritePostData(const CellularHttp_Data_T *postData)
 
     return retcode;
 }
+
+#endif /* CELLULAR_VARIANT_UBLOX */

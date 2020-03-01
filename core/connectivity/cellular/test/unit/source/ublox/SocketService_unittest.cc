@@ -16,7 +16,7 @@
 
 extern "C"
 {
-#include "Kiso_CellularModules.h"
+#include "UBlox.h"
 #define KISO_MODULE_ID KISO_CELLULAR_MODULE_ID_SOCKET_SERVICE
 
 #include "UBloxUtils_th.hh"
