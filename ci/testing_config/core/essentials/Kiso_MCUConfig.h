@@ -50,6 +50,7 @@
 #define KISO_FEATURE_SLEEP    1
 #define KISO_FEATURE_RNG      1
 #define KISO_FEATURE_MCU_CRC  1
+#define KISO_FEATURE_ETHERNET 1
 
 // clang-format on
 

@@ -76,6 +76,10 @@
 #define KISO_FEATURE_MCU_CRC 0
 #endif
 
+#ifndef KISO_FEATURE_ETHERNET
+#define KISO_FEATURE_ETHERNET 1
+#endif
+
 // clang-format on
 
 #endif /* KISO_MCUCONFIG_H_ */
