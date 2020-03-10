@@ -2,6 +2,9 @@
   ******************************************************************************
   * @file    stm32f7xx_hal_eth.c
   * @author  MCD Application Team
+  * @author  Robert Bosch GmbH
+  *          Make low-level enable/disable functions publicly linkable.
+  *
   * @brief   ETH HAL module driver.
   *          This file provides firmware functions to manage the following 
   *          functionalities of the Ethernet (ETH) peripheral:
@@ -160,16 +163,16 @@
   * @{
   */
 static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err);
-static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, uint8_t *Addr);
-static void ETH_MACReceptionEnable(ETH_HandleTypeDef *heth);
-static void ETH_MACReceptionDisable(ETH_HandleTypeDef *heth);
-static void ETH_MACTransmissionEnable(ETH_HandleTypeDef *heth);
-static void ETH_MACTransmissionDisable(ETH_HandleTypeDef *heth);
-static void ETH_DMATransmissionEnable(ETH_HandleTypeDef *heth);
-static void ETH_DMATransmissionDisable(ETH_HandleTypeDef *heth);
-static void ETH_DMAReceptionEnable(ETH_HandleTypeDef *heth);
-static void ETH_DMAReceptionDisable(ETH_HandleTypeDef *heth);
-static void ETH_FlushTransmitFIFO(ETH_HandleTypeDef *heth);
+void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, const uint8_t *Addr);
+void ETH_MACReceptionEnable(ETH_HandleTypeDef *heth);
+void ETH_MACReceptionDisable(ETH_HandleTypeDef *heth);
+void ETH_MACTransmissionEnable(ETH_HandleTypeDef *heth);
+void ETH_MACTransmissionDisable(ETH_HandleTypeDef *heth);
+void ETH_DMATransmissionEnable(ETH_HandleTypeDef *heth);
+void ETH_DMATransmissionDisable(ETH_HandleTypeDef *heth);
+void ETH_DMAReceptionEnable(ETH_HandleTypeDef *heth);
+void ETH_DMAReceptionDisable(ETH_HandleTypeDef *heth);
+void ETH_FlushTransmitFIFO(ETH_HandleTypeDef *heth);
 #if (USE_HAL_ETH_REGISTER_CALLBACKS == 1)
 static void ETH_InitCallbacksToDefault(ETH_HandleTypeDef *heth);
 #endif /* USE_HAL_ETH_REGISTER_CALLBACKS */
@@ -2098,7 +2101,7 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err)
   * @param  Addr Pointer to MAC address buffer data (6 bytes)
   * @retval HAL status
   */
-static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, uint8_t *Addr)
+void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, const uint8_t *Addr)
 {
   uint32_t tmpreg;
   
@@ -2122,7 +2125,7 @@ static void ETH_MACAddressConfig(ETH_HandleTypeDef *heth, uint32_t MacAddr, uint
   *         the configuration information for ETHERNET module  
   * @retval None
   */
-static void ETH_MACTransmissionEnable(ETH_HandleTypeDef *heth)
+void ETH_MACTransmissionEnable(ETH_HandleTypeDef *heth)
 { 
   __IO uint32_t tmpreg = 0;
   
@@ -2142,7 +2145,7 @@ static void ETH_MACTransmissionEnable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module  
   * @retval None
   */
-static void ETH_MACTransmissionDisable(ETH_HandleTypeDef *heth)
+void ETH_MACTransmissionDisable(ETH_HandleTypeDef *heth)
 { 
   __IO uint32_t tmpreg = 0;
   
@@ -2162,7 +2165,7 @@ static void ETH_MACTransmissionDisable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module   
   * @retval None
   */
-static void ETH_MACReceptionEnable(ETH_HandleTypeDef *heth)
+void ETH_MACReceptionEnable(ETH_HandleTypeDef *heth)
 { 
   __IO uint32_t tmpreg = 0;
   
@@ -2182,7 +2185,7 @@ static void ETH_MACReceptionEnable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module   
   * @retval None
   */
-static void ETH_MACReceptionDisable(ETH_HandleTypeDef *heth)
+void ETH_MACReceptionDisable(ETH_HandleTypeDef *heth)
 { 
   __IO uint32_t tmpreg = 0;
   
@@ -2202,7 +2205,7 @@ static void ETH_MACReceptionDisable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module   
   * @retval None
   */
-static void ETH_DMATransmissionEnable(ETH_HandleTypeDef *heth)
+void ETH_DMATransmissionEnable(ETH_HandleTypeDef *heth)
 {
   /* Enable the DMA transmission */
   (heth->Instance)->DMAOMR |= ETH_DMAOMR_ST;  
@@ -2214,7 +2217,7 @@ static void ETH_DMATransmissionEnable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module   
   * @retval None
   */
-static void ETH_DMATransmissionDisable(ETH_HandleTypeDef *heth)
+void ETH_DMATransmissionDisable(ETH_HandleTypeDef *heth)
 { 
   /* Disable the DMA transmission */
   (heth->Instance)->DMAOMR &= ~ETH_DMAOMR_ST;
@@ -2226,7 +2229,7 @@ static void ETH_DMATransmissionDisable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module 
   * @retval None
   */
-static void ETH_DMAReceptionEnable(ETH_HandleTypeDef *heth)
+void ETH_DMAReceptionEnable(ETH_HandleTypeDef *heth)
 {  
   /* Enable the DMA reception */
   (heth->Instance)->DMAOMR |= ETH_DMAOMR_SR;  
@@ -2238,7 +2241,7 @@ static void ETH_DMAReceptionEnable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module 
   * @retval None
   */
-static void ETH_DMAReceptionDisable(ETH_HandleTypeDef *heth)
+void ETH_DMAReceptionDisable(ETH_HandleTypeDef *heth)
 { 
   /* Disable the DMA reception */
   (heth->Instance)->DMAOMR &= ~ETH_DMAOMR_SR;
@@ -2250,7 +2253,7 @@ static void ETH_DMAReceptionDisable(ETH_HandleTypeDef *heth)
   *         the configuration information for ETHERNET module
   * @retval None
   */
-static void ETH_FlushTransmitFIFO(ETH_HandleTypeDef *heth)
+void ETH_FlushTransmitFIFO(ETH_HandleTypeDef *heth)
 {
   __IO uint32_t tmpreg = 0;
   
