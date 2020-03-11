@@ -631,4 +631,3 @@ g_pfnVectors:
    .thumb_set MDIOS_IRQHandler,Default_Handler
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
-

@@ -30,17 +30,24 @@
 #define ETHERNET_INTERRUPT_PRIORITY (7U)
 #define ETHERNET_INTERRUPT_SUBPRIORITY (0U)
 
+extern void ETH_IRQHandler(void);
+
 static struct MCU_Ethernet_S EthernetDevice;
 
-static ETH_DMADescTypeDef TxDmaDescriptors[ETH_TXBUFNB];
-static ETH_DMADescTypeDef RxDmaDescriptors[ETH_RXBUFNB];
+static ETH_DMADescTypeDef TxDmaDescriptors[ETH_TXBUFNB] __attribute__((section(".TxDecripSection")));
+static ETH_DMADescTypeDef RxDmaDescriptors[ETH_RXBUFNB] __attribute__((section(".RxDecripSection")));
 
-static uint8_t TxBuffers[ETH_TXBUFNB][ETH_TX_BUF_SIZE];
-static uint8_t RxBuffers[ETH_RXBUFNB][ETH_RX_BUF_SIZE];
+static uint8_t TxBuffers[ETH_TXBUFNB][ETH_TX_BUF_SIZE] __attribute__((section(".TxArraySection")));
+static uint8_t RxBuffers[ETH_RXBUFNB][ETH_RX_BUF_SIZE] __attribute__((section(".RxArraySection")));
 
 static uint8_t DummyMacAddress[6] = {0, 0, 0, 0, 0, 0};
 
 static int BspState = BSP_STATE_INIT;
+
+void ETH_IRQHandler(void)
+{
+    HAL_ETH_IRQHandler(&EthernetDevice.VendorHandle);
+}
 
 Retcode_T BSP_Ethernet_Connect(void)
 {

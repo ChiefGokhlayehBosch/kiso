@@ -60,8 +60,12 @@ _Min_Stack_Size = 0x400; /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 512K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 2048K
+FLASH(rx)      : ORIGIN = 0x08000000, LENGTH = 2048K
+RAM(xrw)       : ORIGIN = 0x20000000, LENGTH = 499K
+Memory_B1(xrw) : ORIGIN = 0x2007C000, LENGTH = 0x80
+Memory_B2(xrw) : ORIGIN = 0x2007C080, LENGTH = 0x80
+Memory_B3(xrw) : ORIGIN = 0x2007C100, LENGTH = 0x17d0
+Memory_B4(xrw) : ORIGIN = 0x2007D8D0, LENGTH = 0x17d0
 }
 
 /* Define output sections */
@@ -181,4 +185,8 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+  .RxDecripSection : { *(.DMARxDscrTab_section) } >Memory_B1
+  .TxDescripSection : { *(.DMATxDscrTab_section) } >Memory_B2
+  .RxArraySection : { *(.Rx_Buff_section) } >Memory_B3
+  .TxArraySection : { *(.Tx_Buff_section) } >Memory_B4
 }

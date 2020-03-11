@@ -163,6 +163,7 @@ static Retcode_T TransmitFrameInInterruptMode(struct MCU_Ethernet_S *eth)
          * "Ethernet DMA transmit poll demand" register. */
         eth->VendorHandle.Instance->DMATPDR = 0;
     }
+    eth->VendorHandle.Instance->DMATPDR = 0;
 
     return halStat;
 }
