@@ -76,6 +76,10 @@
 #define KISO_FEATURE_BSP_TEST_INTERFACE 1
 #endif
 
+#ifndef KISO_FEATURE_BSP_ETHERNET
+#define KISO_FEATURE_BSP_ETHERNET 1
+#endif
+
 // clang-format on
 
 #endif /* KISO_BSPCONFIG_H_ */
