@@ -3,7 +3,9 @@
   * @file    stm32f7xx_hal_eth.c
   * @author  MCD Application Team
   * @author  Robert Bosch GmbH
-  *          Make low-level enable/disable functions publicly linkable.
+  *          * Make low-level enable/disable functions publicly linkable.
+  *          * Set interrupt-on-completion bit for last-in-frame tx descriptor.
+  *          * Enable tx and error interrupts.
   *
   * @brief   ETH HAL module driver.
   *          This file provides firmware functions to manage the following 
@@ -939,7 +941,7 @@ HAL_StatusTypeDef HAL_ETH_TransmitFrame(ETH_HandleTypeDef *heth, uint32_t FrameL
   if (bufcount == 1)
   {
     /* Set LAST and FIRST segment */
-    heth->TxDesc->Status |=ETH_DMATXDESC_FS|ETH_DMATXDESC_LS;
+    heth->TxDesc->Status |= ETH_DMATXDESC_FS | ETH_DMATXDESC_LS | ETH_DMATXDESC_IC;
     /* Set frame size */
     heth->TxDesc->ControlBufferSize = (FrameLength & ETH_DMATXDESC_TBS1);
     /* Set Own bit of the Tx descriptor Status: gives the buffer back to ETHERNET DMA */
@@ -951,8 +953,8 @@ HAL_StatusTypeDef HAL_ETH_TransmitFrame(ETH_HandleTypeDef *heth, uint32_t FrameL
   {
     for (i=0; i< bufcount; i++)
     {
-      /* Clear FIRST and LAST segment bits */
-      heth->TxDesc->Status &= ~(ETH_DMATXDESC_FS | ETH_DMATXDESC_LS);
+      /* Clear FIRST and LAST segment and INTERRUPT bits */
+      heth->TxDesc->Status &= ~(ETH_DMATXDESC_FS | ETH_DMATXDESC_LS | ETH_DMATXDESC_IC);
       
       if (i == 0) 
       {
@@ -966,7 +968,7 @@ HAL_StatusTypeDef HAL_ETH_TransmitFrame(ETH_HandleTypeDef *heth, uint32_t FrameL
       if (i == (bufcount-1))
       {
         /* Setting the last segment bit */
-        heth->TxDesc->Status |= ETH_DMATXDESC_LS;
+        heth->TxDesc->Status |= ETH_DMATXDESC_LS | ETH_DMATXDESC_IC;
         size = FrameLength - (bufcount-1)*ETH_TX_BUF_SIZE;
         heth->TxDesc->ControlBufferSize = (size & ETH_DMATXDESC_TBS1);
       }
@@ -2080,8 +2082,8 @@ static void ETH_MACDMAConfig(ETH_HandleTypeDef *heth, uint32_t err)
 
      if((heth->Init).RxMode == ETH_RXINTERRUPT_MODE)
      {
-       /* Enable the Ethernet Rx Interrupt */
-       __HAL_ETH_DMA_ENABLE_IT((heth), ETH_DMA_IT_NIS | ETH_DMA_IT_R);
+       /* Enable the Ethernet Rx, Tx and error Interrupts */
+       __HAL_ETH_DMA_ENABLE_IT((heth), ETH_DMA_IT_NIS | ETH_DMA_IT_R | ETH_DMA_IT_AIS | ETH_DMA_IT_FBE | ETH_DMA_IT_T);
      }
 
      /* Initialize MAC address in ethernet MAC */ 
