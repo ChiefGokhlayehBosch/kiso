@@ -4,7 +4,7 @@ pipeline
     {
         dockerfile
         {
-            dir 'ci/docker'
+            dir 'ci/docker/development'
         }
     }
 
